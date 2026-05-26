@@ -4,8 +4,24 @@ from sqlmodel import SQLModel
 
 
 class DireccionEntregaCreate(SQLModel):
-    """Schema para crear una dirección de entrega"""
+    """Schema para crear una dirección de entrega (admin, con usuario_id explícito)"""
     usuario_id: int
+    alias: str
+    calle: str
+    numero: str
+    apartamento: Optional[str] = None
+    localidad: str
+    codigo_postal: Optional[str] = None
+    provincia: Optional[str] = None
+    notas: Optional[str] = None
+    es_principal: bool = False
+
+
+class DireccionEntregaCreateCliente(SQLModel):
+    """Schema para crear una dirección (cliente autenticado, sin usuario_id)
+    
+    El usuario_id se obtiene del token JWT, no del body.
+    """
     alias: str
     calle: str
     numero: str

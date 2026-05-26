@@ -1,12 +1,14 @@
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlmodel import Session
 
+from app.core.auth import get_current_user, RoleChecker
 from app.core.database import get_session
 from app.modules.direccion.service import DireccionEntregaService
 from app.modules.direccion.schemas import (
     DireccionEntregaCreate,
+    DireccionEntregaCreateCliente,
     DireccionEntregaUpdate,
     DireccionEntregaRead,
     DireccionEntregaReadSimple,
@@ -15,6 +17,7 @@ from app.modules.direccion.schemas import (
     DireccionActualizadaResponse,
     DireccionPrincipalResponse,
 )
+from app.modules.usuario.models import Usuario
 
 router = APIRouter(prefix="/api/v1/direcciones", tags=["Direcciones de Entrega"])
 
@@ -27,10 +30,14 @@ def get_service(session: Session = Depends(get_session)) -> DireccionEntregaServ
 
 @router.post("/", response_model=DireccionCreatedResponse, status_code=status.HTTP_201_CREATED)
 def crear_direccion(
-    data: DireccionEntregaCreate,
-    service: DireccionEntregaService = Depends(get_service)
+    data: DireccionEntregaCreateCliente,
+    service: DireccionEntregaService = Depends(get_service),
+    current_user: Usuario = Depends(get_current_user),
 ):
-    """Crea una nueva dirección de entrega
+    """Crea una nueva dirección de entrega para el usuario autenticado
+    
+    El usuario_id se obtiene del token JWT.
+    Body NO incluye usuario_id.
     
     Lógica:
     - Si es la primera dirección del usuario, automáticamente es principal
@@ -38,7 +45,6 @@ def crear_direccion(
     
     Body:
     {
-        "usuario_id": 1,
         "alias": "Casa",
         "calle": "Calle Principal",
         "numero": "123",
@@ -51,7 +57,7 @@ def crear_direccion(
     }
     """
     try:
-        direccion = service.crear_direccion(data)
+        direccion = service.crear_direccion(data, usuario_id=current_user.id)
         
         return DireccionCreatedResponse(
             mensaje="Dirección creada exitosamente",
@@ -72,20 +78,16 @@ def crear_direccion(
         )
 
 
-# ==================== ENDPOINTS DE LECTURA ====================
+# ==================== ENDPOINTS DE LECTURA (CLIENTE) ====================
 
 @router.get("/", response_model=list[DireccionEntregaReadSimple])
-def listar_direcciones(
-    usuario_id: Annotated[int, Query(gt=0)],
-    service: DireccionEntregaService = Depends(get_service)
+def listar_mis_direcciones(
+    service: DireccionEntregaService = Depends(get_service),
+    current_user: Usuario = Depends(get_current_user),
 ):
-    """Lista todas las direcciones activas de un usuario
-    
-    Query params:
-    - usuario_id: ID del usuario (obligatorio)
-    """
+    """Lista todas las direcciones activas del usuario autenticado"""
     try:
-        direcciones = service.obtener_direcciones_usuario(usuario_id)
+        direcciones = service.obtener_direcciones_usuario(current_user.id)
         return direcciones
         
     except Exception as e:
@@ -95,12 +97,49 @@ def listar_direcciones(
         )
 
 
+@router.get("/{direccion_id}", response_model=DireccionEntregaRead)
+def obtener_direccion(
+    direccion_id: Annotated[int, Path(gt=0)],
+    service: DireccionEntregaService = Depends(get_service),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Obtiene una dirección específica por ID (solo si pertenece al usuario autenticado)"""
+    try:
+        direccion = service.obtener_direccion_por_id(direccion_id)
+        
+        if not direccion:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Dirección {direccion_id} no encontrada"
+            )
+        
+        # Verificar pertenencia
+        if direccion.usuario_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Dirección {direccion_id} no encontrada"
+            )
+        
+        return direccion
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener dirección: {str(e)}"
+        )
+
+
+# ==================== ENDPOINTS DE ADMIN (LECTURA) ====================
+
 @router.get("/usuario/{usuario_id}", response_model=list[DireccionEntregaReadCompleta])
 def listar_direcciones_usuario(
     usuario_id: Annotated[int, Path(gt=0)],
-    service: DireccionEntregaService = Depends(get_service)
+    service: DireccionEntregaService = Depends(get_service),
+    _: Usuario = Depends(RoleChecker("ADMIN")),
 ):
-    """Lista todas las direcciones de un usuario con dirección completa formateada"""
+    """[ADMIN] Lista todas las direcciones de un usuario con dirección completa formateada"""
     try:
         direcciones = service.obtener_direcciones_usuario(usuario_id)
         
@@ -125,9 +164,10 @@ def listar_direcciones_usuario(
 @router.get("/usuario/{usuario_id}/principal", response_model=DireccionEntregaRead)
 def obtener_principal_usuario(
     usuario_id: Annotated[int, Path(gt=0)],
-    service: DireccionEntregaService = Depends(get_service)
+    service: DireccionEntregaService = Depends(get_service),
+    _: Usuario = Depends(RoleChecker("ADMIN")),
 ):
-    """Obtiene la dirección principal de un usuario"""
+    """[ADMIN] Obtiene la dirección principal de un usuario"""
     try:
         direccion = service.obtener_principal_usuario(usuario_id)
         
@@ -148,41 +188,16 @@ def obtener_principal_usuario(
         )
 
 
-@router.get("/{direccion_id}", response_model=DireccionEntregaRead)
-def obtener_direccion(
-    direccion_id: Annotated[int, Path(gt=0)],
-    service: DireccionEntregaService = Depends(get_service)
-):
-    """Obtiene una dirección específica por ID"""
-    try:
-        direccion = service.obtener_direccion_por_id(direccion_id)
-        
-        if not direccion:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Dirección {direccion_id} no encontrada"
-            )
-        
-        return direccion
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener dirección: {str(e)}"
-        )
-
-
 # ==================== ENDPOINTS DE ACTUALIZACIÓN ====================
 
 @router.patch("/{direccion_id}", response_model=DireccionActualizadaResponse)
 def actualizar_direccion(
     direccion_id: Annotated[int, Path(gt=0)],
     data: DireccionEntregaUpdate,
-    service: DireccionEntregaService = Depends(get_service)
+    service: DireccionEntregaService = Depends(get_service),
+    current_user: Usuario = Depends(get_current_user),
 ):
-    """Actualiza una dirección de entrega
+    """Actualiza una dirección de entrega (solo si pertenece al usuario autenticado)
     
     Lógica especial:
     - Si se marca como es_principal=True, desactiva automáticamente otras direcciones principales
@@ -196,7 +211,7 @@ def actualizar_direccion(
     }
     """
     try:
-        direccion = service.actualizar_direccion(direccion_id, data)
+        direccion = service.actualizar_direccion(direccion_id, data, usuario_id=current_user.id)
         
         return DireccionActualizadaResponse(
             mensaje="Dirección actualizada exitosamente",
@@ -223,15 +238,15 @@ def actualizar_direccion(
 @router.patch("/{direccion_id}/principal", response_model=DireccionPrincipalResponse)
 def marcar_como_principal(
     direccion_id: Annotated[int, Path(gt=0)],
-    service: DireccionEntregaService = Depends(get_service)
+    service: DireccionEntregaService = Depends(get_service),
+    current_user: Usuario = Depends(get_current_user),
 ):
-    """Marca una dirección como principal rápidamente
+    """Marca una dirección como principal (solo si pertenece al usuario autenticado)
     
     Desactiva automáticamente otras direcciones principales del usuario.
-    Este endpoint es un shortcut para PATCH /direcciones/{id} con es_principal=True.
     """
     try:
-        direccion = service.marcar_como_principal(direccion_id)
+        direccion = service.marcar_como_principal(direccion_id, usuario_id=current_user.id)
         
         return DireccionPrincipalResponse(
             mensaje="Dirección marcada como principal exitosamente",
@@ -257,15 +272,16 @@ def marcar_como_principal(
 @router.delete("/{direccion_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_direccion(
     direccion_id: Annotated[int, Path(gt=0)],
-    service: DireccionEntregaService = Depends(get_service)
+    service: DireccionEntregaService = Depends(get_service),
+    current_user: Usuario = Depends(get_current_user),
 ):
-    """Elimina una dirección (soft delete)
+    """Elimina una dirección (soft delete) — solo si pertenece al usuario autenticado
     
     Lógica:
     - Si la dirección eliminada era principal, la siguiente se vuelve principal automáticamente
     """
     try:
-        service.eliminar_direccion(direccion_id)
+        service.eliminar_direccion(direccion_id, usuario_id=current_user.id)
         return None
         
     except ValueError as e:
@@ -277,4 +293,29 @@ def eliminar_direccion(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al eliminar dirección: {str(e)}"
+        )
+
+
+# ==================== ENDPOINTS DE RESTAURACIÓN ====================
+
+@router.post("/{direccion_id}/restaurar", response_model=DireccionEntregaRead)
+def restaurar_direccion(
+    direccion_id: Annotated[int, Path(gt=0)],
+    service: DireccionEntregaService = Depends(get_service),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Restaura una dirección eliminada (solo si pertenece al usuario autenticado)"""
+    try:
+        direccion = service.restaurar_direccion(direccion_id, usuario_id=current_user.id)
+        return direccion
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al restaurar dirección: {str(e)}"
         )

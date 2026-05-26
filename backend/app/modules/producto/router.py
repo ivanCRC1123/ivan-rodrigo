@@ -1,10 +1,12 @@
-﻿from typing import Annotated
+﻿from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlmodel import Session
 
+from app.core.auth import get_current_user, RoleChecker
 from app.core.database import get_session
 from app.modules.producto.model import Producto
+from app.modules.usuario.models import Usuario
 from app.modules.producto.schema import (
     ProductoCreate, 
     ProductoRead, 
@@ -27,9 +29,29 @@ def get_all(
     max_precio: Annotated[float, Query(ge=0, description="Precio máximo")] = 100000,
     limit: Annotated[int, Query(ge=1, le=100)] = 10,
     offset: Annotated[int, Query(ge=0)] = 0,
+    categoria_id: Annotated[Optional[int], Query(description="Filtrar por ID de categoría")] = None,
+    disponible: Annotated[Optional[bool], Query(description="Filtrar por disponibilidad")] = None,
+    search: Annotated[Optional[str], Query(min_length=1, description="Búsqueda textual por nombre o descripción")] = None,
 ):
-    """Lista todos los productos (excluyendo eliminados)"""
-    return service.get_filtered(min_precio, max_precio, limit, offset, include_deleted=False)
+    """Lista productos del catálogo con filtros combinados (público)
+
+    Filtros disponibles:
+    - Rango de precio (min_precio, max_precio)
+    - Categoría (categoria_id)
+    - Disponibilidad (disponible)
+    - Búsqueda textual (search) — busca en nombre y descripción
+    - Paginación (limit, offset)
+    """
+    return service.get_filtered(
+        min_precio=min_precio,
+        max_precio=max_precio,
+        limit=limit,
+        offset=offset,
+        categoria_id=categoria_id,
+        disponible=disponible,
+        search=search,
+        include_deleted=False,
+    )
 
 
 @router.get("/{producto_id}", response_model=ProductoRead)
@@ -50,6 +72,7 @@ def get_by_id(
 def create(
     data: ProductoCreate,
     service: Annotated[ProductoService, Depends(get_service)],
+    _: Usuario = Depends(RoleChecker("ADMIN")),
 ):
     """Crea un nuevo producto"""
     producto = Producto(**data.model_dump())
@@ -61,6 +84,7 @@ def update(
     service: Annotated[ProductoService, Depends(get_service)],
     data: ProductoUpdate,
     producto_id: Annotated[int, Path(gt=0)],
+    _: Usuario = Depends(RoleChecker("ADMIN")),
 ):
     """Actualiza un producto"""
     producto = service.get_by_id(producto_id)
@@ -76,6 +100,7 @@ def update_disponibilidad(
     service: Annotated[ProductoService, Depends(get_service)],
     data: ProductoUpdateDisponibilidad,
     producto_id: Annotated[int, Path(gt=0)],
+    _: Usuario = Depends(RoleChecker("ADMIN", "STOCK")),
 ):
     """Actualiza la disponibilidad de un producto (PATCH /api/v1/productos/{id}/disponibilidad)
     
@@ -97,6 +122,7 @@ def delete(
     service: Annotated[ProductoService, Depends(get_service)],
     producto_id: Annotated[int, Path(gt=0)],
     hard_delete: Annotated[bool, Query(description="Si es True, elimina permanentemente")] = False,
+    _: Usuario = Depends(RoleChecker("ADMIN")),
 ):
     """Elimina un producto (soft delete por defecto)
     
@@ -122,6 +148,7 @@ def delete(
 def restore(
     service: Annotated[ProductoService, Depends(get_service)],
     producto_id: Annotated[int, Path(gt=0)],
+    _: Usuario = Depends(RoleChecker("ADMIN")),
 ):
     """Restaura un producto que fue eliminado (soft delete)"""
     producto = service.get_by_id(producto_id, include_deleted=True)

@@ -15,7 +15,7 @@ def usuario_id(client):
 
 
 @pytest.fixture
-def producto_id(client):
+def producto_id(client, auth_headers):
     """Crea un producto de prueba y retorna su ID"""
     resp = client.post(PRODUCTO_URL, json={
         "nombre": "Pizza Test",
@@ -24,13 +24,13 @@ def producto_id(client):
         "imagenes_url": [],
         "stock_cantidad": 50,
         "disponible": True,
-    })
+    }, headers=auth_headers)
     assert resp.status_code == 201, f"Error creando producto: {resp.text}"
     return resp.json()["id"]
 
 
 @pytest.fixture
-def producto_id_2(client):
+def producto_id_2(client, auth_headers):
     """Crea otro producto de prueba"""
     resp = client.post(PRODUCTO_URL, json={
         "nombre": "Empanada Test",
@@ -39,7 +39,7 @@ def producto_id_2(client):
         "imagenes_url": [],
         "stock_cantidad": 30,
         "disponible": True,
-    })
+    }, headers=auth_headers)
     assert resp.status_code == 201
     return resp.json()["id"]
 
@@ -112,20 +112,20 @@ def test_crear_pedido_sin_stock(client, usuario_id, producto_id):
 
 # ===================== LISTAR PEDIDOS =====================
 
-def test_listar_pedidos_con_paginacion(client, usuario_id, producto_id, producto_id_2):
+def test_listar_pedidos_con_paginacion(client, auth_headers, usuario_id, producto_id, producto_id_2):
     """GET /api/v1/pedidos/?skip=0&limit=10 debe paginar"""
     _crear_pedido_base(client, usuario_id, producto_id)
     _crear_pedido_base(client, usuario_id, producto_id_2)
-    response = client.get(f"{API_PREFIX}/?skip=0&limit=10")
+    response = client.get(f"{API_PREFIX}/?skip=0&limit=10", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert len(data) >= 2, f"Esperados >=2 pedidos, obtenidos {len(data)}"
 
 
-def test_listar_pedidos_por_usuario(client, usuario_id, producto_id):
+def test_listar_pedidos_por_usuario(client, auth_headers, usuario_id, producto_id):
     """GET /api/v1/pedidos/usuario/{id} debe filtrar por usuario"""
     _crear_pedido_base(client, usuario_id, producto_id)
-    response = client.get(f"{API_PREFIX}/usuario/{usuario_id}")
+    response = client.get(f"{API_PREFIX}/usuario/{usuario_id}", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert len(data) >= 1
@@ -133,7 +133,7 @@ def test_listar_pedidos_por_usuario(client, usuario_id, producto_id):
 
 # ===================== MAQUINA DE ESTADOS =====================
 
-def test_flujo_completo_estados(client, usuario_id, producto_id):
+def test_flujo_completo_estados(client, auth_headers, usuario_id, producto_id):
     """Flujo completo: PENDIENTE > CONFIRMADO > EN_PREPARACION > EN_CAMINO > ENTREGADO"""
     pedido_id = _crear_pedido_base(client, usuario_id, producto_id)
 
@@ -148,18 +148,18 @@ def test_flujo_completo_estados(client, usuario_id, producto_id):
         resp = client.patch(f"{API_PREFIX}/{pedido_id}/estado", json={
             "estado_nuevo": estado_nuevo,
             "razon": razon,
-        })
+        }, headers=auth_headers)
         assert resp.status_code == 200, f"Fallo en transicion a {estado_nuevo}: {resp.text}"
         assert resp.json()["estado_nuevo"] == estado_nuevo
 
     # Verificar historial append-only con 5 registros (creacion + 4 transiciones)
-    historial = client.get(f"{API_PREFIX}/{pedido_id}/historial")
+    historial = client.get(f"{API_PREFIX}/{pedido_id}/historial", headers=auth_headers)
     assert historial.status_code == 200
     registros = historial.json()
     assert len(registros) == 5, f"Esperados 5 registros, obtenidos {len(registros)}"
 
 
-def test_transicion_invalida(client, usuario_id, producto_id):
+def test_transicion_invalida(client, auth_headers, usuario_id, producto_id):
     """Transicion de ENTREGADO a PENDIENTE debe fallar"""
     pedido_id = _crear_pedido_base(client, usuario_id, producto_id)
 
@@ -167,50 +167,50 @@ def test_transicion_invalida(client, usuario_id, producto_id):
         resp = client.patch(f"{API_PREFIX}/{pedido_id}/estado", json={
             "estado_nuevo": estado,
             "razon": f"Avanzando a {estado}",
-        })
+        }, headers=auth_headers)
         assert resp.status_code == 200, f"Fallo avanzando a {estado}: {resp.text}"
 
     # Intentar volver a PENDIENTE (debe fallar por maquina de estados)
     resp = client.patch(f"{API_PREFIX}/{pedido_id}/estado", json={
         "estado_nuevo": "PENDIENTE",
         "razon": "Intento invalido",
-    })
+    }, headers=auth_headers)
     assert resp.status_code == 400
 
 
 # ===================== CANCELACION =====================
 
-def test_cancelar_pedido_pendiente(client, usuario_id, producto_id):
+def test_cancelar_pedido_pendiente(client, auth_headers, usuario_id, producto_id):
     """Cancelar pedido en PENDIENTE debe funcionar"""
     pedido_id = _crear_pedido_base(client, usuario_id, producto_id)
-    resp = client.post(f"{API_PREFIX}/{pedido_id}/cancelar?razon=Cambio+de+opinion")
+    resp = client.post(f"{API_PREFIX}/{pedido_id}/cancelar?razon=Cambio+de+opinion", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["estado_nuevo"] == "CANCELADO"
 
 
-def test_no_cancelar_pedido_en_preparacion(client, usuario_id, producto_id):
+def test_no_cancelar_pedido_en_preparacion(client, auth_headers, usuario_id, producto_id):
     """Cancelar pedido en EN_PREPARACION debe fallar"""
     pedido_id = _crear_pedido_base(client, usuario_id, producto_id)
 
     # Transicion valida: PENDIENTE > CONFIRMADO > EN_PREPARACION
     resp1 = client.patch(f"{API_PREFIX}/{pedido_id}/estado", json={
         "estado_nuevo": "CONFIRMADO", "razon": "Confirmado",
-    })
+    }, headers=auth_headers)
     assert resp1.status_code == 200, f"Fallo CONFIRMADO: {resp1.text}"
 
     resp2 = client.patch(f"{API_PREFIX}/{pedido_id}/estado", json={
         "estado_nuevo": "EN_PREPARACION", "razon": "Cocina inicio",
-    })
+    }, headers=auth_headers)
     assert resp2.status_code == 200, f"Fallo EN_PREPARACION: {resp2.text}"
 
     # Ahora debe fallar la cancelacion
-    resp = client.post(f"{API_PREFIX}/{pedido_id}/cancelar?razon=Cambio+de+idea")
+    resp = client.post(f"{API_PREFIX}/{pedido_id}/cancelar?razon=Cambio+de+idea", headers=auth_headers)
     assert resp.status_code == 400
 
 
 # ===================== SNAPSHOT PATTERN =====================
 
-def test_snapshot_pattern_precio_inmutable(client, usuario_id):
+def test_snapshot_pattern_precio_inmutable(client, usuario_id, auth_headers):
     """El precio del producto se congela al crear el pedido (snapshot)"""
     # Crear producto
     prod_resp = client.post(PRODUCTO_URL, json={
@@ -220,7 +220,7 @@ def test_snapshot_pattern_precio_inmutable(client, usuario_id):
         "imagenes_url": [],
         "stock_cantidad": 10,
         "disponible": True,
-    })
+    }, headers=auth_headers)
     assert prod_resp.status_code == 201
     prod_id = prod_resp.json()["id"]
 
@@ -242,10 +242,11 @@ def test_snapshot_pattern_precio_inmutable(client, usuario_id):
         "imagenes_url": [],
         "stock_cantidad": 10,
         "disponible": True,
-    })
+    }, headers=auth_headers)
 
     # El pedido debe mantener el precio original (snapshot)
-    pedido_resp = client.get(f"{API_PREFIX}/{pedido_id}")
+    # GET /{id} requiere get_current_user (usar auth_headers del admin para acceder)
+    pedido_resp = client.get(f"{API_PREFIX}/{pedido_id}", headers=auth_headers)
     assert pedido_resp.status_code == 200
     detalle = pedido_resp.json()["detalles"][0]
     assert detalle["precio_unitario"] == 1000, (
@@ -256,12 +257,12 @@ def test_snapshot_pattern_precio_inmutable(client, usuario_id):
 
 # ===================== VERIFICAR CANCELACION =====================
 
-def test_puede_cancelarse_endpoint(client, usuario_id, producto_id):
+def test_puede_cancelarse_endpoint(client, auth_headers, usuario_id, producto_id):
     """GET /api/v1/pedidos/{id}/puede-cancelarse"""
     pedido_id = _crear_pedido_base(client, usuario_id, producto_id)
 
     # Pendiente -> debe poder cancelarse
-    resp = client.get(f"{API_PREFIX}/{pedido_id}/puede-cancelarse")
+    resp = client.get(f"{API_PREFIX}/{pedido_id}/puede-cancelarse", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["puede_cancelarse"] is True
 
@@ -269,10 +270,10 @@ def test_puede_cancelarse_endpoint(client, usuario_id, producto_id):
     resp_confirmado = client.patch(f"{API_PREFIX}/{pedido_id}/estado", json={
         "estado_nuevo": "CONFIRMADO",
         "razon": "Confirmado",
-    })
+    }, headers=auth_headers)
     assert resp_confirmado.status_code == 200
 
-    resp = client.get(f"{API_PREFIX}/{pedido_id}/puede-cancelarse")
+    resp = client.get(f"{API_PREFIX}/{pedido_id}/puede-cancelarse", headers=auth_headers)
     assert resp.status_code == 200
     # Confirmado aun puede cancelarse
     assert resp.json()["puede_cancelarse"] is True
@@ -282,10 +283,10 @@ def test_puede_cancelarse_endpoint(client, usuario_id, producto_id):
     resp_prep = client.patch(f"{API_PREFIX}/{pedido_id}/estado", json={
         "estado_nuevo": "EN_PREPARACION",
         "razon": "Cocina inicio",
-    })
+    }, headers=auth_headers)
     assert resp_prep.status_code == 200
 
-    resp = client.get(f"{API_PREFIX}/{pedido_id}/puede-cancelarse")
+    resp = client.get(f"{API_PREFIX}/{pedido_id}/puede-cancelarse", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["puede_cancelarse"] is False
     assert resp.json()["estado_actual"] == "EN_PREPARACION"

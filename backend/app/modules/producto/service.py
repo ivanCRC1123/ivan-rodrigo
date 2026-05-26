@@ -1,6 +1,9 @@
 from datetime import datetime
-from sqlmodel import Session, select
+from typing import Optional
+
+from sqlmodel import Session, select, or_
 from app.modules.producto.model import Producto
+from app.modules.producto_categoria.model import ProductoCategoria
 from sqlalchemy.orm import selectinload
 
 
@@ -9,15 +12,19 @@ class ProductoService:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_all(self, include_deleted: bool = False):
-        """Obtiene todos los productos, excluyendo eliminados por defecto"""
-        statement = (
+    def _base_query(self):
+        """Base query with eager-loaded relationships"""
+        return (
             select(Producto)
             .options(
                 selectinload(Producto.categorias),
                 selectinload(Producto.ingredientes)
             )
         )
+
+    def get_all(self, include_deleted: bool = False):
+        """Obtiene todos los productos, excluyendo eliminados por defecto"""
+        statement = self._base_query()
         if not include_deleted:
             statement = statement.where(Producto.deleted_at.is_(None))
         return self.session.exec(statement).all()
@@ -25,12 +32,8 @@ class ProductoService:
     def get_by_id(self, producto_id: int, include_deleted: bool = False):
         """Obtiene un producto por ID, excluyendo eliminados por defecto"""
         statement = (
-            select(Producto)
+            self._base_query()
             .where(Producto.id == producto_id)
-            .options(
-                selectinload(Producto.categorias),
-                selectinload(Producto.ingredientes)
-            )
         )
         if not include_deleted:
             statement = statement.where(Producto.deleted_at.is_(None))
@@ -45,7 +48,6 @@ class ProductoService:
 
     def update(self, db_producto: Producto, data: dict):
         """Actualiza un producto (excluye campos de auditoría)"""
-        # No permitir actualizar campos de auditoría
         excluded_fields = {"id", "created_at", "deleted_at"}
         for key, value in data.items():
             if key not in excluded_fields and value is not None:
@@ -88,21 +90,61 @@ class ProductoService:
         self.session.commit()
         self.session.refresh(db_producto)
         return db_producto
-    
-    def get_filtered(self, min_precio, max_precio, limit, offset, include_deleted: bool = False):
-        """Obtiene productos filtrados por rango de precio"""
-        statement = (
-            select(Producto)
-            .options(
-                selectinload(Producto.categorias),
-                selectinload(Producto.ingredientes)
-            )
-            .where(
-                Producto.precio_base >= min_precio,
-                Producto.precio_base <= max_precio
-            )
+
+    def get_filtered(
+        self,
+        min_precio: float = 0,
+        max_precio: float = 100000,
+        limit: int = 10,
+        offset: int = 0,
+        categoria_id: Optional[int] = None,
+        disponible: Optional[bool] = None,
+        search: Optional[str] = None,
+        include_deleted: bool = False,
+    ):
+        """Obtiene productos con filtros combinados: precio, categoría, disponibilidad, búsqueda textual"""
+        # Construimos la query de IDs filtrados primero (sin JSON columns, DISTINCT funciona)
+        # Esto evita el error de PostgreSQL con SELECT DISTINCT en columnas JSON
+        id_query = select(Producto.id)
+
+        # Filtro por rango de precio
+        id_query = id_query.where(
+            Producto.precio_base >= min_precio,
+            Producto.precio_base <= max_precio,
         )
+
+        # Filtro por disponibilidad
+        if disponible is not None:
+            id_query = id_query.where(Producto.disponible == disponible)
+
+        # Filtro por búsqueda textual (ILIKE sobre nombre + descripción)
+        if search:
+            pattern = f"%{search}%"
+            id_query = id_query.where(
+                or_(
+                    Producto.nombre.ilike(pattern),
+                    Producto.descripcion.ilike(pattern),
+                )
+            )
+
+        # Filtro por categoría (requiere join con tabla intermedia)
+        if categoria_id is not None:
+            id_query = id_query.join(
+                ProductoCategoria,
+                Producto.id == ProductoCategoria.producto_id,
+            ).where(ProductoCategoria.categoria_id == categoria_id)
+
+        # Excluir soft-deleteados por defecto
         if not include_deleted:
-            statement = statement.where(Producto.deleted_at.is_(None))
-        statement = statement.offset(offset).limit(limit)
+            id_query = id_query.where(Producto.deleted_at.is_(None))
+
+        # DISTINCT solo sobre IDs (evita el problema con JSON)
+        id_query = id_query.distinct().offset(offset).limit(limit)
+
+        # Cargar objetos completos con relaciones por los IDs obtenidos
+        statement = (
+            self._base_query()
+            .where(Producto.id.in_(id_query))
+            .order_by(Producto.id)
+        )
         return self.session.exec(statement).all()

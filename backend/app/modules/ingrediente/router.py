@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlmodel import Session
 from fastapi import Query
 
+from app.core.auth import get_current_user, RoleChecker
 from app.core.database import get_session
 from app.modules.ingrediente import service
+from app.modules.usuario.models import Usuario
 from app.modules.ingrediente.schema import (
     IngredienteCreate,
     IngredienteUpdate,
@@ -16,7 +18,8 @@ router = APIRouter(prefix="/ingredientes", tags=["Ingredientes"])
 @router.post("/", response_model=IngredienteRead, status_code=status.HTTP_201_CREATED)
 def create(
     data: IngredienteCreate,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(RoleChecker("ADMIN")),
 ):
     return service.create(session, data)
 
@@ -46,7 +49,8 @@ def get_by_id(
 def update(
     data: IngredienteUpdate,
     ingrediente_id: int = Path(..., gt=0),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(RoleChecker("ADMIN")),
 ):
     ingrediente = service.get_by_id(session, ingrediente_id)
 
@@ -59,7 +63,8 @@ def update(
 @router.delete("/{ingrediente_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete(
     ingrediente_id: int = Path(..., gt=0),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(RoleChecker("ADMIN")),
 ):
     ingrediente = service.get_by_id(session, ingrediente_id)
 

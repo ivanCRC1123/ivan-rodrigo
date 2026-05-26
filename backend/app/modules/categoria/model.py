@@ -16,12 +16,25 @@ class Categoria(SQLModel, table=True):
     nombre: str = Field(max_length=100, unique=True)
     descripcion: Optional[str] = None
     imagen_url: Optional[str] = None
-    parent_id: Optional[int] = None
+    parent_id: Optional[int] = Field(default=None, foreign_key="categoria.id")
+
+    deleted_at: Optional[datetime] = Field(default=None, nullable=True)
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+    # Self-referencing hierarchy
+    parent: Optional["Categoria"] = Relationship(
+        back_populates="children",
+        sa_relationship_kwargs={"remote_side": "Categoria.id"},
+    )
+    children: List["Categoria"] = Relationship(back_populates="parent")
+
+    # Many-to-many with Producto
     productos: List["Producto"] = Relationship(
         back_populates="categorias",
-        link_model=ProductoCategoria
+        link_model=ProductoCategoria,
     )
+
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None

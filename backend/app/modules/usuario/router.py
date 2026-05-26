@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlmodel import Session
 
 from app.core.database import get_session
+from app.core.auth import get_current_user, RoleChecker
 from app.modules.usuario.service import UsuarioService, RolService, UsuarioRolService
 from app.modules.usuario.models import Usuario, Rol
 from app.modules.usuario.schemas import (
@@ -34,7 +35,8 @@ def get_usuario_rol_service(session: Session = Depends(get_session)) -> UsuarioR
 def listar_usuarios(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    service: UsuarioService = Depends(get_usuario_service)
+    service: UsuarioService = Depends(get_usuario_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Lista todos los usuarios (paginado)"""
     return service.listar_usuarios(skip=skip, limit=limit)
@@ -43,7 +45,8 @@ def listar_usuarios(
 @router.get("/usuarios/{usuario_id}", response_model=UsuarioRead, status_code=status.HTTP_200_OK)
 def obtener_usuario(
     usuario_id: int = Path(..., gt=0),
-    service: UsuarioService = Depends(get_usuario_service)
+    service: UsuarioService = Depends(get_usuario_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Obtiene un usuario por ID"""
     usuario = service.obtener_usuario_por_id(usuario_id)
@@ -60,7 +63,8 @@ def obtener_usuario(
 @router.post("/usuarios", response_model=UsuarioRead, status_code=status.HTTP_201_CREATED)
 def crear_usuario(
     data: UsuarioCreate,
-    service: UsuarioService = Depends(get_usuario_service)
+    service: UsuarioService = Depends(get_usuario_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Crea un nuevo usuario"""
     try:
@@ -77,7 +81,8 @@ def crear_usuario(
 def actualizar_usuario(
     data: UsuarioUpdate,
     usuario_id: int = Path(..., gt=0),
-    service: UsuarioService = Depends(get_usuario_service)
+    service: UsuarioService = Depends(get_usuario_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Actualiza un usuario"""
     try:
@@ -94,7 +99,8 @@ def actualizar_usuario(
 def cambiar_contrasena(
     data: UsuarioChangePassword,
     usuario_id: int = Path(..., gt=0),
-    service: UsuarioService = Depends(get_usuario_service)
+    service: UsuarioService = Depends(get_usuario_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Cambia la contraseña de un usuario"""
     # Validar que las contraseñas nuevas coincidan
@@ -122,7 +128,8 @@ def cambiar_contrasena(
 def eliminar_usuario(
     usuario_id: int = Path(..., gt=0),
     hard_delete: bool = Query(False),
-    service: UsuarioService = Depends(get_usuario_service)
+    service: UsuarioService = Depends(get_usuario_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Elimina un usuario (soft delete por defecto)"""
     try:
@@ -137,7 +144,8 @@ def eliminar_usuario(
 @router.post("/usuarios/{usuario_id}/restaurar", response_model=UsuarioRead)
 def restaurar_usuario(
     usuario_id: int = Path(..., gt=0),
-    service: UsuarioService = Depends(get_usuario_service)
+    service: UsuarioService = Depends(get_usuario_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Restaura un usuario eliminado"""
     try:
@@ -156,7 +164,8 @@ def restaurar_usuario(
 def listar_roles(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    service: RolService = Depends(get_rol_service)
+    service: RolService = Depends(get_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Lista todos los roles"""
     return service.listar_roles(skip=skip, limit=limit)
@@ -165,7 +174,8 @@ def listar_roles(
 @router.get("/roles/{rol_id}", response_model=RolRead, status_code=status.HTTP_200_OK)
 def obtener_rol(
     rol_id: int = Path(..., gt=0),
-    service: RolService = Depends(get_rol_service)
+    service: RolService = Depends(get_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Obtiene un rol por ID"""
     rol = service.obtener_rol_por_id(rol_id)
@@ -182,7 +192,8 @@ def obtener_rol(
 @router.post("/roles", response_model=RolRead, status_code=status.HTTP_201_CREATED)
 def crear_rol(
     data: RolCreate,
-    service: RolService = Depends(get_rol_service)
+    service: RolService = Depends(get_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Crea un nuevo rol"""
     try:
@@ -199,7 +210,8 @@ def crear_rol(
 def actualizar_rol(
     data: RolUpdate,
     rol_id: int = Path(..., gt=0),
-    service: RolService = Depends(get_rol_service)
+    service: RolService = Depends(get_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Actualiza un rol"""
     try:
@@ -216,7 +228,8 @@ def actualizar_rol(
 def eliminar_rol(
     rol_id: int = Path(..., gt=0),
     hard_delete: bool = Query(False),
-    service: RolService = Depends(get_rol_service)
+    service: RolService = Depends(get_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Elimina un rol (soft delete por defecto)"""
     try:
@@ -231,7 +244,8 @@ def eliminar_rol(
 @router.post("/roles/{rol_id}/restaurar", response_model=RolRead)
 def restaurar_rol(
     rol_id: int = Path(..., gt=0),
-    service: RolService = Depends(get_rol_service)
+    service: RolService = Depends(get_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Restaura un rol eliminado"""
     try:
@@ -250,7 +264,8 @@ def restaurar_rol(
 def asignar_rol_a_usuario(
     usuario_id: int = Path(..., gt=0),
     rol_id: int = Path(..., gt=0),
-    service: UsuarioRolService = Depends(get_usuario_rol_service)
+    service: UsuarioRolService = Depends(get_usuario_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Asigna un rol a un usuario"""
     try:
@@ -267,7 +282,8 @@ def asignar_rol_a_usuario(
 def desasignar_rol_de_usuario(
     usuario_id: int = Path(..., gt=0),
     rol_id: int = Path(..., gt=0),
-    service: UsuarioRolService = Depends(get_usuario_rol_service)
+    service: UsuarioRolService = Depends(get_usuario_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Desasigna un rol de un usuario"""
     try:
@@ -282,7 +298,8 @@ def desasignar_rol_de_usuario(
 @router.get("/usuarios/{usuario_id}/roles", response_model=list[RolReadSimple])
 def obtener_roles_usuario(
     usuario_id: int = Path(..., gt=0),
-    service: UsuarioRolService = Depends(get_usuario_rol_service)
+    service: UsuarioRolService = Depends(get_usuario_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Obtiene todos los roles de un usuario"""
     try:
@@ -299,7 +316,8 @@ def obtener_roles_usuario(
 def usuario_tiene_rol(
     usuario_id: int = Path(..., gt=0),
     rol_id: int = Path(..., gt=0),
-    service: UsuarioRolService = Depends(get_usuario_rol_service)
+    service: UsuarioRolService = Depends(get_usuario_rol_service),
+    _: Usuario = Depends(RoleChecker("ADMIN"))
 ):
     """Verifica si un usuario tiene un rol específico"""
     try:

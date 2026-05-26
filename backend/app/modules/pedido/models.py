@@ -75,12 +75,12 @@ class Pedido(SQLModel, table=True):
     # Relaciones
     detalles: List["DetallePedido"] = Relationship(
         back_populates="pedido",
-        cascade_delete=True
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    
+
     historial_estado: List["HistorialEstadoPedido"] = Relationship(
         back_populates="pedido",
-        cascade_delete=True
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     
     usuario: "Usuario" = Relationship()

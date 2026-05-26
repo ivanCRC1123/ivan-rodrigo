@@ -3,8 +3,10 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlmodel import Session
 
+from app.core.auth import get_current_user, RoleChecker
 from app.core.database import get_session
 from app.modules.pedido.service import PedidoService
+from app.modules.usuario.models import Usuario
 from app.modules.pedido.models import EstadoPedido
 from app.modules.pedido.schemas import (
     PedidoCreate,
@@ -97,7 +99,8 @@ def listar_pedidos(
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     estado: Annotated[Optional[EstadoPedido], Query()] = None,
-    service: PedidoService = Depends(get_service)
+    service: PedidoService = Depends(get_service),
+    _: Usuario = Depends(RoleChecker("ADMIN", "PEDIDOS")),
 ):
     """Lista todos los pedidos (con filtro opcional por estado)
     
@@ -116,33 +119,18 @@ def listar_pedidos_usuario(
     usuario_id: Annotated[int, Path(gt=0)],
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
-    service: PedidoService = Depends(get_service)
+    service: PedidoService = Depends(get_service),
+    _: Usuario = Depends(RoleChecker("ADMIN", "PEDIDOS")),
 ):
     """Lista todos los pedidos de un usuario específico"""
     return service.listar_pedidos_usuario(usuario_id, skip, limit)
 
 
-@router.get("/{pedido_id}", response_model=PedidoReadConDetalles)
-def obtener_pedido(
-    pedido_id: Annotated[int, Path(gt=0)],
-    service: PedidoService = Depends(get_service)
-):
-    """Obtiene un pedido con sus detalles"""
-    pedido = service.obtener_pedido_por_id(pedido_id)
-    
-    if not pedido:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Pedido {pedido_id} no encontrado"
-        )
-    
-    return pedido
-
-
 @router.get("/{pedido_id}/historial", response_model=list[HistorialEstadoPedidoRead])
 def obtener_historial_estado(
     pedido_id: Annotated[int, Path(gt=0)],
-    service: PedidoService = Depends(get_service)
+    service: PedidoService = Depends(get_service),
+    _: Usuario = Depends(RoleChecker("ADMIN", "PEDIDOS")),
 ):
     """Obtiene el historial completo de transiciones de un pedido (AUDIT TRAIL)
     
@@ -167,7 +155,8 @@ def obtener_historial_estado(
 @router.get("/numero/{numero_pedido}", response_model=PedidoReadConDetalles)
 def obtener_por_numero_pedido(
     numero_pedido: Annotated[str, Path(min_length=1)],
-    service: PedidoService = Depends(get_service)
+    service: PedidoService = Depends(get_service),
+    _: Usuario = Depends(RoleChecker("ADMIN", "PEDIDOS")),
 ):
     """Obtiene un pedido por su número único (ej: PED-20240525-A1B2C)"""
     pedido = service.obtener_pedido_por_numero(numero_pedido)
@@ -187,7 +176,8 @@ def obtener_por_numero_pedido(
 def cambiar_estado_pedido(
     pedido_id: Annotated[int, Path(gt=0)],
     data: PedidoCambiarEstado,
-    service: PedidoService = Depends(get_service)
+    service: PedidoService = Depends(get_service),
+    _: Usuario = Depends(RoleChecker("ADMIN", "PEDIDOS")),
 ):
     """Cambia el estado de un pedido (APPEND-ONLY AUDIT TRAIL)
     
@@ -234,7 +224,8 @@ def cambiar_estado_pedido(
 def cancelar_pedido(
     pedido_id: Annotated[int, Path(gt=0)],
     razon: Annotated[Optional[str], Query()] = None,
-    service: PedidoService = Depends(get_service)
+    service: PedidoService = Depends(get_service),
+    _: Usuario = Depends(RoleChecker("ADMIN", "PEDIDOS")),
 ):
     """Cancela un pedido (solo si está en PENDIENTE o CONFIRMADO)
     
@@ -263,12 +254,54 @@ def cancelar_pedido(
         )
 
 
+# ==================== ENDPOINTS PARA CLIENTES (STORE-APP) ====================
+
+@router.get("/mis-pedidos", response_model=list[PedidoReadSimple])
+def listar_mis_pedidos(
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    service: PedidoService = Depends(get_service),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Devuelve los pedidos del usuario autenticado (para store-app, role CLIENT)"""
+    return service.listar_pedidos_usuario(current_user.id, skip, limit)
+
+
+@router.get("/{pedido_id}", response_model=PedidoReadConDetalles)
+def obtener_pedido(
+    pedido_id: Annotated[int, Path(gt=0)],
+    service: PedidoService = Depends(get_service),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Obtiene un pedido por ID (solo si es del usuario autenticado o ADMIN/PEDIDOS)"""
+    pedido = service.obtener_pedido_por_id(pedido_id)
+
+    if not pedido:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pedido {pedido_id} no encontrado"
+        )
+
+    # Permitir si es CLIENT y el pedido es suyo, o si tiene rol ADMIN/PEDIDOS
+    user_roles = {r.codigo for r in current_user.roles}
+    is_staff = bool(user_roles & {"ADMIN", "PEDIDOS"})
+
+    if not is_staff and pedido.usuario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para ver este pedido"
+        )
+
+    return pedido
+
+
 # ==================== ENDPOINTS DE VALIDACIÓN ====================
 
 @router.get("/{pedido_id}/puede-cancelarse")
 def puede_cancelarse(
     pedido_id: Annotated[int, Path(gt=0)],
-    service: PedidoService = Depends(get_service)
+    service: PedidoService = Depends(get_service),
+    _: Usuario = Depends(RoleChecker("ADMIN", "PEDIDOS")),
 ):
     """Verifica si un pedido puede ser cancelado"""
     pedido = service.obtener_pedido_por_id(pedido_id)

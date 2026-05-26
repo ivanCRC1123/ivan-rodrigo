@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlmodel import SQLModel, Session
 from app.core.database import engine, get_session
 from app.core.seed import seed_database
@@ -14,6 +16,7 @@ from app.modules.producto_ingrediente.router import router as producto_ingredien
 from app.modules.usuario.router import router as usuario_router
 from app.modules.pedido.router import router as pedido_router
 from app.modules.direccion.router import router as direccion_router
+from app.modules.auth.router import router as auth_router
 
 from app.modules.categoria.model import Categoria  
 from app.modules.ingrediente.model import Ingrediente  
@@ -49,12 +52,22 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        "http://localhost:5176",
+        "http://127.0.0.1:5176",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Montar archivos estáticos para imágenes subidas
+media_dir = Path(__file__).resolve().parent.parent / "media"
+media_dir.mkdir(exist_ok=True)
+app.mount("/media", StaticFiles(directory=str(media_dir)), name="media")
+
+app.include_router(auth_router)
 app.include_router(categoria_router)
 app.include_router(ingrediente_router)
 app.include_router(producto_router)

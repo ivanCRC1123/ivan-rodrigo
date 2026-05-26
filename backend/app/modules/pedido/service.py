@@ -252,6 +252,31 @@ class PedidoService:
             )
             
             self.historial_repo.create(historial)
+
+            # ========== STOCK DEDUCTION ==========
+            # Cuando el pedido se marca como ENTREGADO, descontar del stock
+            # de cada producto la cantidad comprada.
+            if estado_nuevo == EstadoPedido.ENTREGADO:
+                for detalle in pedido.detalles:
+                    producto = self.session.get(Producto, detalle.producto_id)
+                    
+                    if not producto:
+                        # El producto fue eliminado de la BD — log el problema
+                        # pero no impedimos la entrega del pedido
+                        print(f"⚠️ Producto {detalle.producto_id} no encontrado al descontar stock")
+                        continue
+                    
+                    # Descontar la cantidad comprada del stock actual
+                    nuevo_stock = producto.stock_cantidad - detalle.cantidad
+                    
+                    # Evitar stock negativo (por si hubo una devolución/ajuste manual)
+                    producto.stock_cantidad = max(0, nuevo_stock)
+                    
+                    # Marcar como no disponible si llegó a 0
+                    if producto.stock_cantidad == 0:
+                        producto.disponible = False
+                    
+                    self.session.add(producto)
             
             # Commit de la transacción
             self.session.commit()

@@ -11,6 +11,11 @@ from sqlmodel import SQLModel, Session, create_engine, text
 from app.main import app
 from app.core.config import settings
 
+# Credenciales admin del seed data
+ADMIN_EMAIL = "admin@example.com"
+ADMIN_PASSWORD = "admin123"
+LOGIN_URL = "/api/v1/auth/login"
+
 
 @pytest.fixture(scope="session")
 def db_engine():
@@ -38,3 +43,24 @@ def client() -> Generator[TestClient, None, None]:
     """Cliente HTTP de prueba — el lifespan crea tablas + seed data al iniciar"""
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture(scope="session")
+def admin_token():
+    """Obtiene token JWT de admin (session-scoped, se loguea una sola vez)"""
+    with TestClient(app) as c:
+        resp = c.post(LOGIN_URL, json={
+            "email": ADMIN_EMAIL,
+            "password": ADMIN_PASSWORD,
+        })
+        if resp.status_code == 200:
+            return resp.json()["access_token"]
+        return None
+
+
+@pytest.fixture
+def auth_headers(admin_token):
+    """Headers con token de admin para usar en tests que requieren auth"""
+    if admin_token:
+        return {"Authorization": f"Bearer {admin_token}"}
+    return {}
