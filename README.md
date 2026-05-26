@@ -49,16 +49,25 @@ El sistema está compuesto por un backend en FastAPI con base de datos PostgreSQ
 
 ### Backend
 
--pip install -r requirements.txt
--cd app
--python -m fastapi dev app/main.py
+- cd backend
+- python -m venv .venv
+- .venv\Scripts\Activate
+- pip install -r requirements.txt
+- uvicorn app.main:app --reload
 
 ---
 
-### Frontend
+### Frontend Admin
 
--npm install
--npm run dev
+- cd admin-app
+- npm install
+- npm run dev
+
+### Frontend Store
+
+- cd store-app
+- npm install
+- npm run dev
 
 ---
 
