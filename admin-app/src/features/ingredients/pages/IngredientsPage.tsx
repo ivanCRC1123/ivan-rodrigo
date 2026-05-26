@@ -1,13 +1,14 @@
 ﻿import { useState } from "react";
-import { Modal } from "../../components/ui/Modal";
+import { Modal } from "../../../components/ui/Modal";
 import {
   useCreateIngredient,
   useDeleteIngredient,
   useIngredients,
   useUpdateIngredient,
-} from "../../hooks/useIngredients";
-import { getApiErrorMessage } from "../../lib/apiError";
-import type { IngredienteRead } from "../../types/IngredienteRead";
+} from "../../../hooks/useIngredients";
+import { getApiErrorMessage } from "../../../lib/apiError";
+import type { IngredienteRead } from "../../../types/IngredienteRead";
+import { useAuthStore } from "../../../stores/authStore";
 
 type IngredientFormState = {
   nombre: string;
@@ -28,6 +29,8 @@ const toForm = (ingredient: IngredienteRead): IngredientFormState => ({
 });
 
 export const IngredientsPage = () => {
+  const { hasRole } = useAuthStore();
+  const isAdmin = hasRole("ADMIN");
   const { data = [], isLoading, isError, error } = useIngredients();
   const createIngredient = useCreateIngredient();
   const updateIngredient = useUpdateIngredient();
@@ -96,13 +99,15 @@ export const IngredientsPage = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-wide">Ingredientes</h1>
 
-        <button
-          type="button"
-          onClick={startCreate}
-          className="rounded-xl bg-emerald-500 px-5 py-2 font-medium hover:bg-emerald-600 transition shadow-lg"
-        >
-          + Nuevo
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={startCreate}
+            className="rounded-xl bg-emerald-500 px-5 py-2 font-medium hover:bg-emerald-600 transition shadow-lg"
+          >
+            + Nuevo
+          </button>
+        )}
       </div>
 
       {/* ERROR */}
@@ -152,21 +157,28 @@ export const IngredientsPage = () => {
 
                   <td className="p-3">
                     <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(ingredient)}
-                        className="rounded-lg bg-yellow-500/20 px-3 py-1 text-yellow-400 hover:bg-yellow-500/30 transition"
-                      >
-                        Editar
-                      </button>
+                      {isAdmin && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(ingredient)}
+                            className="rounded-lg bg-yellow-500/20 px-3 py-1 text-yellow-400 hover:bg-yellow-500/30 transition"
+                          >
+                            Editar
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => void onDelete(ingredient.id)}
-                        className="rounded-lg bg-red-500/20 px-3 py-1 text-red-400 hover:bg-red-500/30 transition"
-                      >
-                        Eliminar
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() => void onDelete(ingredient.id)}
+                            className="rounded-lg bg-red-500/20 px-3 py-1 text-red-400 hover:bg-red-500/30 transition"
+                          >
+                            Eliminar
+                          </button>
+                        </>
+                      )}
+                      {!isAdmin && (
+                        <span className="text-xs text-gray-500">Solo lectura</span>
+                      )}
                     </div>
                   </td>
                 </tr>

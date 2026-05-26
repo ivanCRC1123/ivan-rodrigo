@@ -1,6 +1,6 @@
 ﻿import { Link, useParams } from "react-router-dom";
-import { useProductById } from "../../hooks/useProducts";
-import { getApiErrorMessage } from "../../lib/apiError";
+import { useProductById } from "../../../hooks/useProducts";
+import { getApiErrorMessage } from "../../../lib/apiError";
 
 export const ProductDetailPage = () => {
   const params = useParams();

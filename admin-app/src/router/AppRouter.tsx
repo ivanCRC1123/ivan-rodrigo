@@ -7,22 +7,79 @@
   Routes,
 } from "react-router-dom";
 import { LoginPage } from "../features/auth/pages/LoginPage";
+import { RegisterPage } from "../features/auth/pages/RegisterPage";
 import { useAuthStore } from "../stores/authStore";
-import { CategoriesPage } from "../pages/categories/CategoriesPage";
-import { DashboardPage } from "../pages/dashboard/DashboardPage";
-import { IngredientsPage } from "../pages/ingredients/IngredientsPage";
-import { PedidosPage } from "../pages/pedidos/PedidosPage";
-import { ProductDetailPage } from "../pages/products/ProductDetailPage";
-import { ProductsPage } from "../pages/products/ProductsPage";
+import { CategoriesPage } from "../features/categories/pages/CategoriesPage";
+import { DashboardPage } from "../features/dashboard/pages/DashboardPage";
+import { IngredientsPage } from "../features/ingredients/pages/IngredientsPage";
+import { PedidosPage } from "../features/orders/pages/PedidosPage";
+import { UsersPage } from "../features/users/pages/UsersPage";
+import { ProductDetailPage } from "../features/products/pages/ProductDetailPage";
+import { ProductsPage } from "../features/products/pages/ProductsPage";
 
 const linkBase =
   "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition";
 
+interface SidebarLink {
+  to: string;
+  label: string;
+  roles: string[];
+}
+
+const sidebarLinks: SidebarLink[] = [
+  {
+    to: "/dashboard",
+    label: "Dashboard",
+    roles: ["ADMIN", "STOCK", "PEDIDOS"],
+  },
+  { to: "/productos", label: "Productos", roles: ["ADMIN", "STOCK"] },
+  { to: "/categorias", label: "Categorías", roles: ["ADMIN", "STOCK"] },
+  { to: "/ingredientes", label: "Ingredientes", roles: ["ADMIN", "STOCK"] },
+  { to: "/usuarios", label: "Usuarios", roles: ["ADMIN"] },
+  { to: "/pedidos", label: "Pedidos", roles: ["ADMIN", "PEDIDOS"] },
+];
+
+const routeRoles: Record<string, string[]> = {
+  "/dashboard": ["ADMIN", "STOCK", "PEDIDOS"],
+  "/productos": ["ADMIN", "STOCK"],
+  "/categorias": ["ADMIN", "STOCK"],
+  "/ingredientes": ["ADMIN", "STOCK"],
+  "/usuarios": ["ADMIN"],
+  "/pedidos": ["ADMIN", "PEDIDOS"],
+};
+
+/** Safe helper — never throws, always returns boolean */
+const checkRoles = (
+  fn: ((...r: string[]) => boolean) | undefined,
+  ...roles: string[]
+): boolean => {
+  try {
+    if (typeof fn !== "function") return false;
+    return fn(...roles);
+  } catch {
+    return false;
+  }
+};
+
 const ProtectedLayout = () => {
-  const { user, logout } = useAuthStore();
+  const store = useAuthStore();
+  const user = store.user;
+  const logout = store.logout;
+  const hasAnyRole = store.hasAnyRole;
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Route-level guard — wrapped so it NEVER throws
+  try {
+    const currentPath = "/" + window.location.pathname.split("/")[1];
+    const allowedRoles = routeRoles[currentPath];
+    if (allowedRoles && !checkRoles(hasAnyRole, ...allowedRoles)) {
+      return <Navigate to="/dashboard" replace />;
+    }
+  } catch {
+    // If the guard itself fails, render normally (don't white-screen)
   }
 
   return (
@@ -32,78 +89,42 @@ const ProtectedLayout = () => {
         <h2 className="mb-8 text-xl font-bold">MiTiendita</h2>
 
         <nav className="flex flex-col gap-2">
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-emerald-500 text-white shadow-md"
-                  : "text-gray-400 hover:bg-zinc-800"
-              }`
-            }
-          >
-            Dashboard
-          </NavLink>
-
-          <NavLink
-            to="/productos"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-emerald-500 text-white shadow-md"
-                  : "text-gray-400 hover:bg-zinc-800"
-              }`
-            }
-          >
-            Productos
-          </NavLink>
-
-          <NavLink
-            to="/categorias"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-emerald-500 text-white shadow-md"
-                  : "text-gray-400 hover:bg-zinc-800"
-              }`
-            }
-          >
-            Categorías
-          </NavLink>
-
-          <NavLink
-            to="/ingredientes"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-emerald-500 text-white shadow-md"
-                  : "text-gray-400 hover:bg-zinc-800"
-              }`
-            }
-          >
-            Ingredientes
-          </NavLink>
-
-          <NavLink
-            to="/pedidos"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-emerald-500 text-white shadow-md"
-                  : "text-gray-400 hover:bg-zinc-800"
-              }`
-            }
-          >
-            Pedidos
-          </NavLink>
+          {sidebarLinks
+            .filter((link) => checkRoles(hasAnyRole, ...link.roles))
+            .map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                className={({ isActive }) =>
+                  `${linkBase} ${
+                    isActive
+                      ? "bg-emerald-500 text-white shadow-md"
+                      : "text-gray-400 hover:bg-zinc-800"
+                  }`
+                }
+              >
+                {link.label}
+              </NavLink>
+            ))}
         </nav>
 
         {/* USER INFO & LOGOUT */}
         <div className="mt-auto pt-6">
           <div className="mb-2 text-xs text-gray-500">
-            {user.nombre} {user.apellido}
-            <br />
-            {user.email}
+            <div className="text-sm font-medium text-white">
+              {user.nombre} {user.apellido}
+            </div>
+            <div className="mt-0.5">{user.email}</div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {(user.roles ?? []).map((rol) => (
+                <span
+                  key={rol.id}
+                  className="rounded-md border border-emerald-500/30 bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-400"
+                >
+                  {rol.nombre}
+                </span>
+              ))}
+            </div>
           </div>
           <button
             onClick={() => {
@@ -130,6 +151,7 @@ export const AppRouter = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
 
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -138,6 +160,7 @@ export const AppRouter = () => {
           <Route path="/productos/:id" element={<ProductDetailPage />} />
           <Route path="/categorias" element={<CategoriesPage />} />
           <Route path="/ingredientes" element={<IngredientsPage />} />
+          <Route path="/usuarios" element={<UsersPage />} />
           <Route path="/pedidos" element={<PedidosPage />} />
         </Route>
 

@@ -1,14 +1,16 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { UsuarioAuth } from "../api/auth.api";
+import type { UsuarioAuth, LoginResponse } from "../api/auth.api";
+import { login as loginApi } from "../api/auth.api";
 
 interface AuthState {
   user: UsuarioAuth | null;
   token: string | null;
-  setAuth: (user: UsuarioAuth, token?: string) => void;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: () => boolean;
-  isAdmin: () => boolean;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (...roles: string[]) => boolean;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -17,8 +19,24 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
 
-      setAuth: (user: UsuarioAuth, token?: string) => {
-        set({ user, token: token || "authenticated" });
+      login: async (email: string, password: string) => {
+        const response: LoginResponse = await loginApi(email, password);
+        
+        // Build UsuarioAuth from the response
+        const user: UsuarioAuth = {
+          id: response.user_id,
+          email: response.email,
+          nombre: response.nombre,
+          apellido: response.apellido,
+          activo: true,
+          roles: response.roles.map((codigo) => ({
+            id: 0, // We don't have the id from login response
+            nombre: codigo,
+            codigo,
+          })),
+        };
+        
+        set({ user, token: response.access_token });
       },
 
       logout: () => {
@@ -27,15 +45,28 @@ export const useAuthStore = create<AuthState>()(
       },
 
       isAuthenticated: () => {
-        return get().user !== null;
+        return get().user !== null && get().token !== null;
       },
 
-      isAdmin: () => {
+      hasRole: (role: string) => {
         const { user } = get();
         if (!user) return false;
-        return user.roles.some(
-          (r) => r.codigo === "ADMIN" || r.nombre === "ADMIN"
-        );
+        try {
+          return (user.roles ?? []).some((r) => r.codigo === role);
+        } catch {
+          return false;
+        }
+      },
+
+      hasAnyRole: (...roles: string[]) => {
+        const { user } = get();
+        if (!user) return false;
+        try {
+          const userRoles = user.roles ?? [];
+          return roles.some((role) => userRoles.some((r) => r.codigo === role));
+        } catch {
+          return false;
+        }
       },
     }),
     {

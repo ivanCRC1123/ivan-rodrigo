@@ -10,8 +10,8 @@ import {
   type PedidoReadSimple,
   type PedidoReadConDetalles,
   type HistorialEstadoRead,
-} from "../../api/pedido.api";
-import { getApiErrorMessage } from "../../lib/apiError";
+} from "../../../api/pedido.api";
+import { getApiErrorMessage } from "../../../lib/apiError";
 
 const ESTADOS_VALIDOS: Record<EstadoPedidoEnum, EstadoPedidoEnum[]> = {
   PENDIENTE: ["CONFIRMADO", "CANCELADO"],

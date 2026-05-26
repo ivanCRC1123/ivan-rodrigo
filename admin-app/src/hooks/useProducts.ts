@@ -16,6 +16,8 @@ export const useProducts = (params?: {
   max_precio?: number;
   limit?: number;
   offset?: number;
+  categoria_id?: number;
+  search?: string;
 }) => {
   return useQuery({
     queryKey: [...PRODUCTS_QUERY_KEY, params],

@@ -4,46 +4,75 @@ import type { CategoriaRead } from "../types/CategoriaRead";
 import type { CategoriaCreate } from "../types/CategoriaCreate";
 import type { CategoriaUpdate } from "../types/CategoriaUpdate";
 
+// ── Search / browse via /public (no auth required) ─────────────────
+
+export interface CategoriaPublicItem {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  imagen_url?: string;
+  parent_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CategoriaPublicResponse {
+  items: CategoriaPublicItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export const searchPublicCategories = async (params: {
+  search?: string;
+  parent_id?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<CategoriaPublicResponse> => {
+  const res = await http.get("/api/v1/categorias/public", { params });
+  return res.data;
+};
+
 /**
- * GET /categorias
+ * GET /api/v1/categorias
  */
 export const getCategories = async (): Promise<CategoriaRead[]> => {
-  const res = await http.get("/categorias/");
+  const res = await http.get("/api/v1/categorias/");
   return res.data;
 };
 
 /**
- * GET /categorias/{id}
+ * GET /api/v1/categorias/{id}
  */
 export const getCategoryById = async (id: number): Promise<CategoriaRead> => {
-  const res = await http.get(`/categorias/${id}`);
+  const res = await http.get(`/api/v1/categorias/${id}`);
   return res.data;
 };
 
 /**
- * POST /categorias
+ * POST /api/v1/categorias
  */
 export const createCategory = async (
   data: CategoriaCreate
 ): Promise<CategoriaRead> => {
-  const res = await http.post("/categorias/", data);
+  const res = await http.post("/api/v1/categorias/", data);
   return res.data;
 };
 
 /**
- * PUT /categorias/{id}
+ * PUT /api/v1/categorias/{id}
  */
 export const updateCategory = async (
   id: number,
   data: CategoriaUpdate
 ): Promise<CategoriaRead> => {
-  const res = await http.put(`/categorias/${id}`, data);
+  const res = await http.put(`/api/v1/categorias/${id}`, data);
   return res.data;
 };
 
 /**
- * DELETE /categorias/{id}
+ * DELETE /api/v1/categorias/{id}
  */
 export const deleteCategory = async (id: number): Promise<void> => {
-  await http.delete(`/categorias/${id}`);
+  await http.delete(`/api/v1/categorias/${id}`);
 };

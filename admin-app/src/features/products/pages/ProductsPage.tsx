@@ -1,25 +1,26 @@
 ﻿import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   addProductToCategory,
   removeProductFromCategory,
-} from "../../api/productoCategoria.api";
+} from "../../../api/productoCategoria.api";
 import {
   addIngredientToProduct,
   removeIngredientFromProduct,
-} from "../../api/productoIngrediente.api";
-import { Modal } from "../../components/ui/Modal";
-import { useCategories } from "../../hooks/useCategories";
-import { useIngredients } from "../../hooks/useIngredients";
+} from "../../../api/productoIngrediente.api";
+import { Modal } from "../../../components/ui/Modal";
+import { useCategories } from "../../../hooks/useCategories";
+import { useIngredients } from "../../../hooks/useIngredients";
 import {
   useCreateProduct,
   useDeleteProduct,
   useProducts,
   useUpdateProduct,
-} from "../../hooks/useProducts";
-import { getApiErrorMessage } from "../../lib/apiError";
-import type { ProductoRead } from "../../types/ProductoRead";
+} from "../../../hooks/useProducts";
+import { getApiErrorMessage } from "../../../lib/apiError";
+import type { ProductoRead } from "../../../types/ProductoRead";
+import { useAuthStore } from "../../../stores/authStore";
 
 type ProductFormState = {
   nombre: string;
@@ -59,9 +60,46 @@ const toggleId = (ids: number[], id: number) => {
 };
 
 export const ProductsPage = () => {
+  const { hasRole } = useAuthStore();
+  const isAdmin = hasRole("ADMIN");
+  const isStockOrAdmin = hasRole("ADMIN") || hasRole("STOCK");
   const queryClient = useQueryClient();
 
-  const { data = [], isLoading, isError, error } = useProducts();
+  // Read categoria_id from URL search params (e.g. /productos?categoria_id=5)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoriaFilter = searchParams.get("categoria_id")
+    ? Number(searchParams.get("categoria_id"))
+    : undefined;
+
+  // ── Búsqueda textual con debounce ─────────────────────────────
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Construir params combinando categoriaFilter y debouncedSearch
+  const queryParams = useMemo(() => {
+    const p: Record<string, unknown> = {};
+    if (categoriaFilter) {
+      p.categoria_id = categoriaFilter;
+      p.limit = 100;
+    }
+    if (debouncedSearch) {
+      p.search = debouncedSearch;
+    }
+    return Object.keys(p).length > 0 ? p : undefined;
+  }, [categoriaFilter, debouncedSearch]);
+
+  const { data = [], isLoading, isError, error } = useProducts(
+    queryParams as
+      | { min_precio?: number; max_precio?: number; limit?: number; offset?: number; categoria_id?: number; search?: string }
+      | undefined,
+  );
   const { data: categories = [] } = useCategories();
   const { data: ingredients = [] } = useIngredients();
 
@@ -223,14 +261,73 @@ export const ProductsPage = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Productos</h1>
 
-        <button
-          type="button"
-          onClick={startCreate}
-          className="rounded-xl bg-emerald-500 px-5 py-2 font-medium hover:bg-emerald-600 transition shadow-lg"
-        >
-          + Nuevo
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={startCreate}
+            className="rounded-xl bg-emerald-500 px-5 py-2 font-medium hover:bg-emerald-600 transition shadow-lg"
+          >
+            + Nuevo
+          </button>
+        )}
       </div>
+
+      {/* BARRA DE BÚSQUEDA */}
+      <div className="relative">
+        {/* Icono lupa */}
+        <svg
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          placeholder="Buscar productos por nombre o descripción…"
+        />
+        {/* Indicador de búsqueda activa */}
+        {debouncedSearch && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery("");
+              setDebouncedSearch("");
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md bg-zinc-800 px-2 py-1 text-xs text-gray-400 hover:bg-zinc-700"
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* FILTRO ACTIVO DE CATEGORÍA */}
+      {categoriaFilter && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-400">
+          <span>
+            Filtrando por categoría ID: <strong>{categoriaFilter}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchParams({});
+            }}
+            className="ml-2 rounded-md bg-zinc-800 px-2 py-0.5 text-xs text-gray-300 hover:bg-zinc-700"
+          >
+            Limpiar filtro
+          </button>
+        </div>
+      )}
 
       {/* ERROR */}
       {formError && (
@@ -326,21 +423,25 @@ export const ProductsPage = () => {
                           Ver
                         </Link>
 
-                        <button
-                          type="button"
-                          onClick={() => startEdit(product)}
-                          className="rounded-lg bg-yellow-500/20 px-3 py-1 text-yellow-400 hover:bg-yellow-500/30"
-                        >
-                          Editar
-                        </button>
+                        {isStockOrAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(product)}
+                            className="rounded-lg bg-yellow-500/20 px-3 py-1 text-yellow-400 hover:bg-yellow-500/30"
+                          >
+                            Editar
+                          </button>
+                        )}
 
-                        <button
-                          type="button"
-                          onClick={() => void onDelete(product.id)}
-                          className="rounded-lg bg-red-500/20 px-3 py-1 text-red-400 hover:bg-red-500/30"
-                        >
-                          Eliminar
-                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => void onDelete(product.id)}
+                            className="rounded-lg bg-red-500/20 px-3 py-1 text-red-400 hover:bg-red-500/30"
+                          >
+                            Eliminar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

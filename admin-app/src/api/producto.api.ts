@@ -9,6 +9,8 @@ export const getProducts = async (params?: {
   max_precio?: number;
   limit?: number;
   offset?: number;
+  categoria_id?: number;
+  search?: string;
 }): Promise<ProductoRead[]> => {
   const res = await http.get("/api/v1/productos/", { params });
   return res.data;

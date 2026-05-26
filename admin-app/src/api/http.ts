@@ -9,17 +9,33 @@ export const http = axios.create({
 
 // Request interceptor: add auth token if available
 http.interceptors.request.use((config) => {
-  const token = localStorage.getItem("admin-auth-token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  // Read token from zustand persist storage
+  try {
+    const stored = localStorage.getItem("admin-auth-storage");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed?.state?.token && parsed.state.token !== "authenticated") {
+        config.headers.Authorization = `Bearer ${parsed.state.token}`;
+      }
+    }
+  } catch {
+    // ignore
   }
   return config;
 });
 
-// Response interceptor: standardized error handling
+// Response interceptor: if 401, clear auth and redirect to login
 http.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("admin-auth-storage");
+      localStorage.removeItem("admin-auth-token");
+      // Only redirect if not already on login page
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
     console.error("[API Error]", {
       url: error.config?.url,
       method: error.config?.method,

@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { getPedidos } from "../../api/pedido.api";
-import { getProducts } from "../../api/producto.api";
-import { getCategories } from "../../api/categoria.api";
-import { getIngredients } from "../../api/ingrediente.api";
-import { getApiErrorMessage } from "../../lib/apiError";
+import { getPedidos } from "../../../api/pedido.api";
+import { getProducts } from "../../../api/producto.api";
+import { getCategories } from "../../../api/categoria.api";
+import { getIngredients } from "../../../api/ingrediente.api";
+import { getApiErrorMessage } from "../../../lib/apiError";
 
 export const DashboardPage = () => {
   const { data: pedidos = [] } = useQuery({
