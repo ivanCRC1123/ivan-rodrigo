@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.core.auth import create_access_token
+from app.core.security import create_access_token
 from app.modules.usuario.models import Usuario, Rol, UsuarioRol
 from app.modules.categoria.model import Categoria
 from app.modules.producto.model import Producto

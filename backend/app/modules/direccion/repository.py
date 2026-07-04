@@ -1,20 +1,22 @@
 from datetime import datetime
 from typing import Optional
+
 from sqlmodel import Session, select
 
+from app.core.base_repository import BaseRepository
 from app.modules.direccion.models import DireccionEntrega
 
 
-class DireccionEntregaRepository:
+class DireccionEntregaRepository(BaseRepository[DireccionEntrega]):
     """Repositorio para operaciones de Dirección de Entrega"""
 
     def __init__(self, session: Session):
-        self.session = session
+        super().__init__(DireccionEntrega, session)
 
     def get_by_id(
         self,
         direccion_id: int,
-        include_deleted: bool = False
+        include_deleted: bool = False,
     ) -> Optional[DireccionEntrega]:
         """Obtiene una dirección por ID"""
         query = select(DireccionEntrega).where(DireccionEntrega.id == direccion_id)
@@ -25,7 +27,7 @@ class DireccionEntregaRepository:
     def get_by_usuario_id(
         self,
         usuario_id: int,
-        include_deleted: bool = False
+        include_deleted: bool = False,
     ) -> list[DireccionEntrega]:
         """Obtiene todas las direcciones de un usuario"""
         query = select(DireccionEntrega).where(
@@ -48,7 +50,7 @@ class DireccionEntregaRepository:
     def get_otras_direcciones(
         self,
         usuario_id: int,
-        exclude_id: Optional[int] = None
+        exclude_id: Optional[int] = None,
     ) -> list[DireccionEntrega]:
         """Obtiene todas las direcciones de un usuario excepto la principal (y opcionalmente una específica)"""
         query = select(DireccionEntrega).where(
@@ -62,9 +64,7 @@ class DireccionEntregaRepository:
 
     def create(self, direccion: DireccionEntrega) -> DireccionEntrega:
         """Crea una nueva dirección"""
-        self.session.add(direccion)
-        self.session.flush()
-        return direccion
+        return self.add(direccion)
 
     def update(self, direccion: DireccionEntrega, data: dict) -> DireccionEntrega:
         """Actualiza una dirección"""
@@ -88,7 +88,7 @@ class DireccionEntregaRepository:
 
     def desactivar_principal_usuario(self, usuario_id: int, exclude_id: Optional[int] = None) -> None:
         """Desactiva la dirección principal de un usuario (marca es_principal=False)
-        
+
         Útil cuando se establece una nueva dirección como principal.
         """
         query = select(DireccionEntrega).where(

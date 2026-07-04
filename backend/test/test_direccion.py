@@ -53,14 +53,14 @@ def test_crear_direccion(client, auth_headers):
 
 
 def test_crear_direccion_sin_auth(client):
-    """POST sin token debe fallar con 422"""
+    """POST sin token debe fallar con 401"""
     response = client.post(BASE_URL, json={
         "alias": "Casa",
         "calle": "Calle Falsa",
         "numero": "123",
         "localidad": "La Plata",
     })
-    assert response.status_code == 422
+    assert response.status_code == 401
 
 
 def test_crear_primera_direccion_es_principal(client, auth_headers):
@@ -93,9 +93,9 @@ def test_listar_mis_direcciones(client, auth_headers):
 
 
 def test_listar_direcciones_sin_auth(client):
-    """GET sin token debe fallar con 422"""
+    """GET sin token debe fallar con 401"""
     response = client.get(BASE_URL)
-    assert response.status_code == 422
+    assert response.status_code == 401
 
 
 def test_listar_direcciones_solo_mias(client, auth_headers):
@@ -156,13 +156,13 @@ def test_actualizar_direccion(client, auth_headers):
 
 
 def test_actualizar_direccion_sin_auth(client, auth_headers):
-    """PATCH sin token debe fallar con 422"""
+    """PATCH sin token debe fallar con 401"""
     created = _crear_direccion_basica(client, auth_headers, "Test")
     direccion_id = created["direccion_id"]
     response = client.patch(f"{BASE_URL}{direccion_id}", json={
         "alias": "Nuevo",
     })
-    assert response.status_code == 422
+    assert response.status_code == 401
 
 
 # ======================== MARCAR COMO PRINCIPAL ========================
@@ -257,6 +257,6 @@ def test_admin_obtener_principal_usuario(client, auth_headers):
 
 
 def test_admin_sin_auth_listar_usuario(client):
-    """Endpoint admin sin auth debe fallar con 422"""
+    """Endpoint admin sin auth debe fallar con 401"""
     response = client.get(f"{BASE_URL}usuario/1")
-    assert response.status_code == 422
+    assert response.status_code == 401

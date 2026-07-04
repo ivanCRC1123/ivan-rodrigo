@@ -1,15 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, status
-from sqlmodel import Session
-from fastapi import Query
+from fastapi import APIRouter, Depends, HTTPException, Path, status, Query
 
-from app.core.auth import get_current_user, RoleChecker
-from app.core.database import get_session
+from app.core.deps import get_current_user, require_role
 from app.modules.ingrediente import service
+from app.modules.ingrediente.ingrediente_uow import IngredienteUnitOfWork
 from app.modules.usuario.models import Usuario
 from app.modules.ingrediente.schema import (
     IngredienteCreate,
     IngredienteUpdate,
-    IngredienteRead
+    IngredienteRead,
 )
 
 router = APIRouter(prefix="/ingredientes", tags=["Ingredientes"])
@@ -18,58 +16,68 @@ router = APIRouter(prefix="/ingredientes", tags=["Ingredientes"])
 @router.post("/", response_model=IngredienteRead, status_code=status.HTTP_201_CREATED)
 def create(
     data: IngredienteCreate,
-    session: Session = Depends(get_session),
-    _: Usuario = Depends(RoleChecker("ADMIN")),
+    _: Usuario = Depends(require_role(["ADMIN"])),
 ):
-    return service.create(session, data)
+    with IngredienteUnitOfWork() as uow:
+        resultado = service.create(uow, data)
+        return resultado
 
 
 @router.get("/", response_model=list[IngredienteRead], status_code=status.HTTP_200_OK)
 def get_all(
     limit: int = Query(10, ge=1, le=100),
-    session: Session = Depends(get_session)
 ):
-    return service.get_all(session, limit)
+    with IngredienteUnitOfWork() as uow:
+        return service.get_all(uow, limit)
 
 
 @router.get("/{ingrediente_id}", response_model=IngredienteRead, status_code=status.HTTP_200_OK)
 def get_by_id(
     ingrediente_id: int = Path(..., gt=0),
-    session: Session = Depends(get_session)
 ):
-    ingrediente = service.get_by_id(session, ingrediente_id)
+    with IngredienteUnitOfWork() as uow:
+        ingrediente = service.get_by_id(uow, ingrediente_id)
 
-    if not ingrediente:
-        raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
+        if not ingrediente:
+            raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
 
-    return ingrediente
+        return ingrediente
 
 
 @router.put("/{ingrediente_id}", response_model=IngredienteRead, status_code=status.HTTP_200_OK)
 def update(
     data: IngredienteUpdate,
     ingrediente_id: int = Path(..., gt=0),
-    session: Session = Depends(get_session),
-    _: Usuario = Depends(RoleChecker("ADMIN")),
+    _: Usuario = Depends(require_role(["ADMIN"])),
 ):
-    ingrediente = service.get_by_id(session, ingrediente_id)
+    with IngredienteUnitOfWork() as uow:
+        resultado = service.update(uow, ingrediente_id, data.model_dump(exclude_unset=True))
 
-    if not ingrediente:
-        raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
 
-    return service.update(session, ingrediente_id, data.model_dump(exclude_unset=True))
+        return resultado
 
 
 @router.delete("/{ingrediente_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete(
     ingrediente_id: int = Path(..., gt=0),
-    session: Session = Depends(get_session),
-    _: Usuario = Depends(RoleChecker("ADMIN")),
+    _: Usuario = Depends(require_role(["ADMIN"])),
 ):
-    ingrediente = service.get_by_id(session, ingrediente_id)
+    with IngredienteUnitOfWork() as uow:
+        encontrado = service.delete(uow, ingrediente_id)
+        if not encontrado:
+            raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
+        return None
 
-    if not ingrediente:
-        raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
 
-    service.delete(session, ingrediente_id)
-    return None
+@router.post("/{ingrediente_id}/restaurar", response_model=IngredienteRead, status_code=status.HTTP_200_OK)
+def restaurar(
+    ingrediente_id: int = Path(..., gt=0),
+    _: Usuario = Depends(require_role(["ADMIN"])),
+):
+    with IngredienteUnitOfWork() as uow:
+        resultado = service.restore(uow, ingrediente_id)
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Ingrediente no encontrado o no está eliminado")
+        return resultado

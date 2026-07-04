@@ -107,6 +107,7 @@ class PedidoReadSimple(SQLModel):
     numero_pedido: str
     usuario_id: int
     estado: EstadoPedido
+    forma_pago: FormaPago
     monto_total: float
     created_at: datetime
 

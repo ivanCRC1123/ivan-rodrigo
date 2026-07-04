@@ -64,3 +64,12 @@ def auth_headers(admin_token):
     if admin_token:
         return {"Authorization": f"Bearer {admin_token}"}
     return {}
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limits():
+    """Limpia el estado de rate limiting entre tests para evitar interferencias."""
+    yield
+    from app.core.rate_limit import reset_for_ip
+    reset_for_ip("testclient")
+    reset_for_ip("127.0.0.1")

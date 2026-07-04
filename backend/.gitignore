@@ -1,2 +1,11 @@
-.atl/
+# Entorno virtual
+.venv/
+venv/
+env/
 
+# Caché de Python
+**/__pycache__/
+*.pyc
+
+# Archivo de variables de entorno
+.env

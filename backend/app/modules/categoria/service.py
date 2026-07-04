@@ -2,17 +2,18 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlmodel import Session, select, func
+from sqlmodel import select, func
 
 from app.modules.categoria.model import Categoria
+from app.modules.categoria.categoria_uow import CategoriaUnitOfWork
 from app.modules.producto.model import Producto
 from app.modules.producto_categoria.model import ProductoCategoria
 
 
 class CategoriaService:
 
-    def __init__(self, session: Session):
-        self.session = session
+    def __init__(self, uow: CategoriaUnitOfWork):
+        self.uow = uow
 
     # ── Admin: list (excludes soft-deleted) ──────────────────────────
 
@@ -22,12 +23,12 @@ class CategoriaService:
             .where(Categoria.deleted_at == None)
             .order_by(Categoria.nombre)
         )
-        return self.session.exec(stmt).all()
+        return self.uow.session.exec(stmt).all()
 
     # ── Admin: get by id (excludes soft-deleted) ─────────────────────
 
     def get_by_id(self, categoria_id: int):
-        categoria = self.session.get(Categoria, categoria_id)
+        categoria = self.uow.session.get(Categoria, categoria_id)
         if categoria and categoria.is_deleted():
             return None
         return categoria
@@ -37,9 +38,8 @@ class CategoriaService:
     def create(self, categoria: Categoria):
         if categoria.parent_id is not None:
             self._validate_parent(categoria.parent_id)
-        self.session.add(categoria)
-        self.session.commit()
-        self.session.refresh(categoria)
+        self.uow.session.add(categoria)
+        self.uow.session.flush()
         return categoria
 
     # ── Admin: update ────────────────────────────────────────────────
@@ -64,9 +64,8 @@ class CategoriaService:
             setattr(db_categoria, key, value)
 
         db_categoria.updated_at = datetime.utcnow()
-        self.session.add(db_categoria)
-        self.session.commit()
-        self.session.refresh(db_categoria)
+        self.uow.session.add(db_categoria)
+        self.uow.session.flush()
         return db_categoria
 
     # ── Admin: soft delete ───────────────────────────────────────────
@@ -87,8 +86,8 @@ class CategoriaService:
         # Soft delete
         db_categoria.deleted_at = datetime.utcnow()
         db_categoria.updated_at = datetime.utcnow()
-        self.session.add(db_categoria)
-        self.session.commit()
+        self.uow.session.add(db_categoria)
+        self.uow.session.flush()
 
     # ── Public: paginated listing ────────────────────────────────────
 
@@ -127,15 +126,15 @@ class CategoriaService:
             stmt = stmt.where(Categoria.parent_id == None)
             count_stmt = count_stmt.where(Categoria.parent_id == None)
 
-        total = self.session.exec(count_stmt).one()
-        items = self.session.exec(stmt.offset(offset).limit(limit)).all()
+        total = self.uow.session.exec(count_stmt).one()
+        items = self.uow.session.exec(stmt.offset(offset).limit(limit)).all()
 
         return items, total
 
     # ── Private helpers ──────────────────────────────────────────────
 
     def _validate_parent(self, parent_id: int):
-        parent = self.session.get(Categoria, parent_id)
+        parent = self.uow.session.get(Categoria, parent_id)
         if not parent or parent.is_deleted():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -153,5 +152,5 @@ class CategoriaService:
                 Producto.disponible == True,
             )
         )
-        result = self.session.exec(stmt).one()
+        result = self.uow.session.exec(stmt).one()
         return result

@@ -15,18 +15,15 @@ class EstadoPedido(str, Enum):
     PENDIENTE = "PENDIENTE"
     CONFIRMADO = "CONFIRMADO"
     EN_PREPARACION = "EN_PREPARACION"
-    EN_CAMINO = "EN_CAMINO"
     ENTREGADO = "ENTREGADO"
     CANCELADO = "CANCELADO"
 
 
 class FormaPago(str, Enum):
     """Formas de pago disponibles"""
-    TARJETA_CREDITO = "TARJETA_CREDITO"
-    TARJETA_DEBITO = "TARJETA_DEBITO"
+    MERCADO_PAGO = "MERCADO_PAGO"
     EFECTIVO = "EFECTIVO"
     TRANSFERENCIA = "TRANSFERENCIA"
-    MERCADO_PAGO = "MERCADO_PAGO"
 
 
 class Pedido(SQLModel, table=True):
@@ -91,7 +88,7 @@ class Pedido(SQLModel, table=True):
 
     def puede_cancelarse(self) -> bool:
         """Verifica si el pedido puede ser cancelado"""
-        return self.estado in [EstadoPedido.PENDIENTE, EstadoPedido.CONFIRMADO]
+        return self.estado in [EstadoPedido.PENDIENTE, EstadoPedido.CONFIRMADO, EstadoPedido.EN_PREPARACION]
 
     def monto_total_detalles(self) -> float:
         """Calcula el monto total desde los detalles"""

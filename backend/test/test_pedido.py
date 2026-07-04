@@ -69,7 +69,7 @@ def test_crear_pedido_exitoso(client, usuario_id, producto_id):
     """POST /api/v1/pedidos/ debe crear un pedido correctamente"""
     response = client.post(f"{API_PREFIX}/", json={
         "usuario_id": usuario_id,
-        "forma_pago": "TARJETA_CREDITO",
+        "forma_pago": "EFECTIVO",
         "direccion_entrega": "Calle Principal 123",
         "observaciones": "Dejar en porteria",
         "detalles": [
@@ -134,13 +134,12 @@ def test_listar_pedidos_por_usuario(client, auth_headers, usuario_id, producto_i
 # ===================== MAQUINA DE ESTADOS =====================
 
 def test_flujo_completo_estados(client, auth_headers, usuario_id, producto_id):
-    """Flujo completo: PENDIENTE > CONFIRMADO > EN_PREPARACION > EN_CAMINO > ENTREGADO"""
+    """Flujo completo: PENDIENTE > CONFIRMADO > EN_PREPARACION > ENTREGADO"""
     pedido_id = _crear_pedido_base(client, usuario_id, producto_id)
 
     transiciones = [
         ("CONFIRMADO", "Cliente confirmo"),
         ("EN_PREPARACION", "Cocina inicio"),
-        ("EN_CAMINO", "En ruta"),
         ("ENTREGADO", "Entregado"),
     ]
 
@@ -152,18 +151,18 @@ def test_flujo_completo_estados(client, auth_headers, usuario_id, producto_id):
         assert resp.status_code == 200, f"Fallo en transicion a {estado_nuevo}: {resp.text}"
         assert resp.json()["estado_nuevo"] == estado_nuevo
 
-    # Verificar historial append-only con 5 registros (creacion + 4 transiciones)
+    # Verificar historial append-only con 4 registros (creacion + 3 transiciones)
     historial = client.get(f"{API_PREFIX}/{pedido_id}/historial", headers=auth_headers)
     assert historial.status_code == 200
     registros = historial.json()
-    assert len(registros) == 5, f"Esperados 5 registros, obtenidos {len(registros)}"
+    assert len(registros) == 4, f"Esperados 4 registros, obtenidos {len(registros)}"
 
 
 def test_transicion_invalida(client, auth_headers, usuario_id, producto_id):
     """Transicion de ENTREGADO a PENDIENTE debe fallar"""
     pedido_id = _crear_pedido_base(client, usuario_id, producto_id)
 
-    for estado in ["CONFIRMADO", "EN_PREPARACION", "EN_CAMINO", "ENTREGADO"]:
+    for estado in ["CONFIRMADO", "EN_PREPARACION", "ENTREGADO"]:
         resp = client.patch(f"{API_PREFIX}/{pedido_id}/estado", json={
             "estado_nuevo": estado,
             "razon": f"Avanzando a {estado}",

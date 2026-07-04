@@ -31,6 +31,7 @@ class CategoriaRead(SQLModel):
 class CategoriaReadSimple(SQLModel):
     id: int
     nombre: str
+    imagen_url: Optional[str] = None
 
 
 # --- Public endpoint schemas ---

@@ -17,9 +17,14 @@ class Ingrediente(SQLModel, table=True):
     descripcion: Optional[str] = None
 
     es_alergeno: bool = Field(default=False, nullable=False)
+    stock_cantidad: int = Field(default=0, ge=0, nullable=False)
 
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    deleted_at: Optional[datetime] = Field(default=None, nullable=True)
+
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
     productos: List["Producto"] = Relationship(
         back_populates="ingredientes",

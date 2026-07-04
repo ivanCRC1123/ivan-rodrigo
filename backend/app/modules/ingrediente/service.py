@@ -1,53 +1,65 @@
-from sqlmodel import Session, select
-from fastapi import HTTPException
+from datetime import datetime
+
+from sqlmodel import select
 
 from app.modules.ingrediente.model import Ingrediente
+from app.modules.ingrediente.ingrediente_uow import IngredienteUnitOfWork
 
 
-def create(session: Session, data):
+def create(uow: IngredienteUnitOfWork, data) -> Ingrediente:
     ingrediente = Ingrediente(**data.model_dump())
-    session.add(ingrediente)
-    session.commit()
-    session.refresh(ingrediente)
+    uow.session.add(ingrediente)
+    uow.session.flush()
+    uow.session.refresh(ingrediente)
     return ingrediente
 
 
-def get_all(session: Session, limit: int):
-    return session.exec(select(Ingrediente).limit(limit)).all()
+def get_all(uow: IngredienteUnitOfWork, limit: int) -> list[Ingrediente]:
+    return list(
+        uow.session.exec(
+            select(Ingrediente).where(Ingrediente.deleted_at.is_(None)).limit(limit)
+        ).all()
+    )
 
 
-def get_by_id(session: Session, ingrediente_id: int):
-    ingrediente = session.get(Ingrediente, ingrediente_id)
-
-    if not ingrediente:
-        raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
-
+def get_by_id(uow: IngredienteUnitOfWork, ingrediente_id: int) -> Ingrediente | None:
+    ingrediente = uow.session.get(Ingrediente, ingrediente_id)
+    if ingrediente and ingrediente.is_deleted():
+        return None
     return ingrediente
 
 
-def update(session: Session, ingrediente_id: int, data):
-    ingrediente = session.get(Ingrediente, ingrediente_id)
-
+def update(uow: IngredienteUnitOfWork, ingrediente_id: int, data_dict: dict) -> Ingrediente | None:
+    ingrediente = get_by_id(uow, ingrediente_id)
     if not ingrediente:
-        raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
-
-    for key, value in data.items():
+        return None
+    for key, value in data_dict.items():
         setattr(ingrediente, key, value)
-
-    session.add(ingrediente)
-    session.commit()
-    session.refresh(ingrediente)
-
+    ingrediente.updated_at = datetime.utcnow()
+    uow.session.add(ingrediente)
+    uow.session.flush()
+    uow.session.refresh(ingrediente)
     return ingrediente
 
 
-def delete(session: Session, ingrediente_id: int):
-    ingrediente = session.get(Ingrediente, ingrediente_id)
-
+def delete(uow: IngredienteUnitOfWork, ingrediente_id: int) -> bool:
+    ingrediente = get_by_id(uow, ingrediente_id)
     if not ingrediente:
-        raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
+        return False
+    ingrediente.deleted_at = datetime.utcnow()
+    ingrediente.updated_at = datetime.utcnow()
+    uow.session.add(ingrediente)
+    uow.session.flush()
+    return True
 
-    session.delete(ingrediente)
-    session.commit()
 
-    return {"message": "Ingrediente eliminado"}
+def restore(uow: IngredienteUnitOfWork, ingrediente_id: int) -> Ingrediente | None:
+    ingrediente = uow.session.get(Ingrediente, ingrediente_id)
+    if not ingrediente or not ingrediente.is_deleted():
+        return None
+    ingrediente.deleted_at = None
+    ingrediente.updated_at = datetime.utcnow()
+    uow.session.add(ingrediente)
+    uow.session.flush()
+    uow.session.refresh(ingrediente)
+    return ingrediente

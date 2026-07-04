@@ -1,7 +1,9 @@
 """Tests CRUD del módulo Producto"""
 
-# El router de producto está bajo /api/v1/productos
 BASE_URL = "/api/v1/productos/"
+UNIDADES_URL = "/api/v1/unidades-medida/"
+INGREDIENTES_URL = "/ingredientes/"
+PI_URL = "/producto-ingrediente/"
 
 
 def _crear_producto_basico(client, nombre="Pizza Clásica", precio=1200, headers=None):
@@ -17,6 +19,12 @@ def _crear_producto_basico(client, nombre="Pizza Clásica", precio=1200, headers
     }, headers=hdrs)
     assert resp.status_code == 201
     return resp.json()
+
+
+def _get_unidad_id(client, simbolo="ud"):
+    """Helper: obtiene el id de una unidad de medida por símbolo (del seed)"""
+    unidades = client.get(UNIDADES_URL).json()
+    return next(u["id"] for u in unidades if u["simbolo"] == simbolo)
 
 
 def test_crear_producto(client, auth_headers):
@@ -95,3 +103,52 @@ def test_eliminar_producto(client, auth_headers):
     assert delete_resp.status_code == 204
     get_resp = client.get(f"{BASE_URL}{created['id']}")
     assert get_resp.status_code == 404
+
+
+def test_crear_producto_con_unidad_venta(client, auth_headers):
+    """POST con unidad_venta_id válido (del seed) debe crear el producto con esa FK"""
+    unidad_id = _get_unidad_id(client, "ud")
+    response = client.post(BASE_URL, json={
+        "nombre": "Empanada",
+        "descripcion": "Rellena",
+        "precio_base": 350,
+        "imagenes_url": [],
+        "stock_cantidad": 50,
+        "disponible": True,
+        "unidad_venta_id": unidad_id,
+    }, headers=auth_headers)
+    assert response.status_code == 201
+    assert response.json()["unidad_venta_id"] == unidad_id
+
+
+def test_actualizar_imagenes(client, auth_headers):
+    """PATCH /{id}/imagenes debe reemplazar el array de imágenes"""
+    created = _crear_producto_basico(client, "Con Imagenes", headers=auth_headers)
+    nuevas = ["https://example.com/a.jpg", "https://example.com/b.jpg"]
+    response = client.patch(
+        f"{BASE_URL}{created['id']}/imagenes",
+        json={"imagenes_url": nuevas},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["imagenes_url"] == nuevas
+
+
+def test_listar_ingredientes_de_producto(client, auth_headers):
+    """GET /{id}/ingredientes devuelve la lista de ingredientes asociados"""
+    producto = _crear_producto_basico(client, "Pizza Margherita", headers=auth_headers)
+    ingrediente = client.post(INGREDIENTES_URL, json={
+        "nombre": "Queso", "descripcion": "Mozzarella", "es_alergeno": False,
+    }, headers=auth_headers).json()
+    unidad_id = _get_unidad_id(client, "g")
+    client.post(PI_URL, json={
+        "producto_id": producto["id"],
+        "ingrediente_id": ingrediente["id"],
+        "es_removible": True,
+        "cantidad": "100.000",
+        "unidad_medida_id": unidad_id,
+    })
+    response = client.get(f"{BASE_URL}{producto['id']}/ingredientes")
+    assert response.status_code == 200
+    ids = [i["id"] for i in response.json()]
+    assert ingrediente["id"] in ids

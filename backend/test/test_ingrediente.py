@@ -74,7 +74,7 @@ def test_actualizar_ingrediente(client, auth_headers):
 
 
 def test_eliminar_ingrediente(client, auth_headers):
-    """DELETE /ingredientes/{id} debe eliminar (204 No Content)"""
+    """DELETE /ingredientes/{id} debe hacer soft delete (204) y GET devuelve 404"""
     created = client.post(BASE_URL, json={
         "nombre": "Orégano", "descripcion": "Seco", "es_alergeno": False,
     }, headers=auth_headers).json()
@@ -82,3 +82,36 @@ def test_eliminar_ingrediente(client, auth_headers):
     assert delete_resp.status_code == 204
     get_resp = client.get(f"{BASE_URL}{created['id']}")
     assert get_resp.status_code == 404
+
+
+def test_ingrediente_soft_delete_no_aparece_en_lista(client, auth_headers):
+    """Ingrediente eliminado (soft delete) no aparece en GET /ingredientes/"""
+    created = client.post(BASE_URL, json={
+        "nombre": "Albahaca", "descripcion": "Fresca", "es_alergeno": False,
+    }, headers=auth_headers).json()
+    client.delete(f"{BASE_URL}{created['id']}", headers=auth_headers)
+    lista = client.get(BASE_URL).json()
+    ids = [i["id"] for i in lista]
+    assert created["id"] not in ids
+
+
+def test_crear_con_stock_cantidad(client, auth_headers):
+    """POST /ingredientes/ con stock_cantidad=50 debe persistir el valor"""
+    response = client.post(BASE_URL, json={
+        "nombre": "Harina", "descripcion": "000", "es_alergeno": False, "stock_cantidad": 50,
+    }, headers=auth_headers)
+    assert response.status_code == 201
+    assert response.json()["stock_cantidad"] == 50
+
+
+def test_restaurar_ingrediente(client, auth_headers):
+    """DELETE → POST /{id}/restaurar → GET devuelve 200 con el ingrediente restaurado"""
+    created = client.post(BASE_URL, json={
+        "nombre": "Azúcar", "descripcion": "Blanca", "es_alergeno": False,
+    }, headers=auth_headers).json()
+    client.delete(f"{BASE_URL}{created['id']}", headers=auth_headers)
+    restaurar_resp = client.post(f"{BASE_URL}{created['id']}/restaurar", headers=auth_headers)
+    assert restaurar_resp.status_code == 200
+    assert restaurar_resp.json()["id"] == created["id"]
+    get_resp = client.get(f"{BASE_URL}{created['id']}")
+    assert get_resp.status_code == 200

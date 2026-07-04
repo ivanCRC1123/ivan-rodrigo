@@ -1,9 +1,18 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional, List
 from sqlmodel import Field, SQLModel
 
 from app.modules.categoria.schema import CategoriaReadSimple
-from app.modules.ingrediente.schema import IngredienteReadSimple
+
+
+class ProductoIngredienteDetalle(SQLModel):
+    """Ingrediente con cantidad y unidad desde la join table producto_ingrediente"""
+    id: int
+    nombre: str
+    cantidad: Decimal
+    unidad_medida: str
+    es_alergeno: bool = False
 
 class ProductoBase(SQLModel):
     nombre: str
@@ -12,6 +21,7 @@ class ProductoBase(SQLModel):
     imagenes_url: list[str] = Field(default_factory=list)
     stock_cantidad: int = 0
     disponible: bool = True
+    unidad_venta_id: Optional[int] = None
 
 
 class ProductoCreate(ProductoBase):
@@ -24,18 +34,22 @@ class ProductoUpdate(SQLModel):
     imagenes_url: Optional[list[str]] = None
     stock_cantidad: Optional[int] = None
     disponible: Optional[bool] = None
+    unidad_venta_id: Optional[int] = None
 
 
 class ProductoUpdateDisponibilidad(SQLModel):
-    """Schema para actualizar disponibilidad del producto"""
     disponible: bool
+
+
+class ImagenProductoUpdate(SQLModel):
+    imagenes_url: list[str]
 
 
 class ProductoRead(ProductoBase):
     id: int
 
     categorias: List[CategoriaReadSimple] = Field(default_factory=list)
-    ingredientes: List[IngredienteReadSimple] = Field(default_factory=list)
+    ingredientes: List[ProductoIngredienteDetalle] = Field(default_factory=list)
     
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

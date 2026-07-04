@@ -26,6 +26,7 @@ class Producto(SQLModel, table=True):
 
     stock_cantidad: int = Field(default=0, ge=0)
     disponible: bool = Field(default=True)
+    unidad_venta_id: Optional[int] = Field(default=None, foreign_key="unidad_medida.id", nullable=True)
 
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
@@ -47,4 +48,8 @@ class Producto(SQLModel, table=True):
     ingredientes: List["Ingrediente"] = Relationship(
         back_populates="productos",
         link_model=ProductoIngrediente
+    )
+
+    producto_ingredientes: List["ProductoIngrediente"] = Relationship(
+        sa_relationship_kwargs={"viewonly": True},
     )

@@ -1,24 +1,31 @@
 from datetime import datetime
 from typing import Optional
+
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
+from app.core.base_repository import BaseRepository
 from app.modules.pedido.models import (
-    Pedido, 
-    DetallePedido, 
+    Pedido,
+    DetallePedido,
     HistorialEstadoPedido,
-    EstadoPedido
+    EstadoPedido,
 )
 
 
-class PedidoRepository:
+class PedidoRepository(BaseRepository[Pedido]):
     """Repositorio para operaciones de Pedido"""
 
     def __init__(self, session: Session):
-        self.session = session
+        super().__init__(Pedido, session)
 
     def get_by_id(self, pedido_id: int, include_deleted: bool = False) -> Optional[Pedido]:
         """Obtiene un pedido por ID"""
-        query = select(Pedido).where(Pedido.id == pedido_id)
+        query = (
+            select(Pedido)
+            .options(selectinload(Pedido.detalles))
+            .where(Pedido.id == pedido_id)
+        )
         if not include_deleted:
             query = query.where(Pedido.deleted_at.is_(None))
         return self.session.exec(query).first()
@@ -54,9 +61,7 @@ class PedidoRepository:
 
     def create(self, pedido: Pedido) -> Pedido:
         """Crea un nuevo pedido"""
-        self.session.add(pedido)
-        self.session.flush()  # Flush para obtener el ID sin hacer commit
-        return pedido
+        return self.add(pedido)
 
     def update(self, pedido: Pedido, data: dict) -> Pedido:
         """Actualiza un pedido"""
@@ -89,11 +94,11 @@ class PedidoRepository:
         return self.session.exec(query).first() is not None
 
 
-class DetallePedidoRepository:
+class DetallePedidoRepository(BaseRepository[DetallePedido]):
     """Repositorio para operaciones de Detalle de Pedido"""
 
     def __init__(self, session: Session):
-        self.session = session
+        super().__init__(DetallePedido, session)
 
     def get_by_pedido_id(self, pedido_id: int, include_deleted: bool = False) -> list[DetallePedido]:
         """Obtiene todos los detalles de un pedido"""
@@ -104,9 +109,7 @@ class DetallePedidoRepository:
 
     def create(self, detalle: DetallePedido) -> DetallePedido:
         """Crea un nuevo detalle de pedido (SNAPSHOT)"""
-        self.session.add(detalle)
-        self.session.flush()
-        return detalle
+        return self.add(detalle)
 
     def create_many(self, detalles: list[DetallePedido]) -> list[DetallePedido]:
         """Crea múltiples detalles de pedido"""
@@ -115,18 +118,17 @@ class DetallePedidoRepository:
         return detalles
 
 
-class HistorialEstadoPedidoRepository:
+class HistorialEstadoPedidoRepository(BaseRepository[HistorialEstadoPedido]):
     """Repositorio para operaciones de Historial de Estado - APPEND-ONLY
-    
+
     RESTRICCIONES CRÍTICAS:
     - Solo INSERT permitido
     - NO UPDATE
     - NO DELETE
-    - Este repositorio no implementa update() ni delete()
     """
 
     def __init__(self, session: Session):
-        self.session = session
+        super().__init__(HistorialEstadoPedido, session)
 
     def get_by_pedido_id(self, pedido_id: int) -> list[HistorialEstadoPedido]:
         """Obtiene el historial de estados de un pedido"""
@@ -144,25 +146,23 @@ class HistorialEstadoPedidoRepository:
 
     def create(self, historial: HistorialEstadoPedido) -> HistorialEstadoPedido:
         """Crea una nueva entrada en el historial (APPEND-ONLY)
-        
+
         Este es el ÚNICO método permitido en esta tabla.
         No hay update() ni delete() por diseño de auditoría.
         """
-        self.session.add(historial)
-        self.session.flush()
-        return historial
+        return self.add(historial)
 
     def get_transiciones_para_estado(
         self,
         pedido_id: int,
-        estado_nuevo: EstadoPedido
+        estado_nuevo: EstadoPedido,
     ) -> list[HistorialEstadoPedido]:
         """Obtiene todos los registros donde el estado_nuevo es el especificado"""
         query = select(HistorialEstadoPedido).where(
             HistorialEstadoPedido.pedido_id == pedido_id,
-            HistorialEstadoPedido.estado_nuevo == estado_nuevo
+            HistorialEstadoPedido.estado_nuevo == estado_nuevo,
         ).order_by(HistorialEstadoPedido.created_at.asc())
         return self.session.exec(query).all()
 
-    # Deliberadamente sin implementar: update(), delete(), hard_delete()
+    # Deliberadamente sin implementar: update(), delete()
     # Esto fuerza el patrón append-only

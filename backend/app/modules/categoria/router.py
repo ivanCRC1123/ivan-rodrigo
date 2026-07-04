@@ -1,12 +1,11 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from sqlmodel import Session
 
-from app.core.auth import RoleChecker
-from app.core.database import get_session
+from app.core.deps import require_role
+from app.core.ws_manager import ws_manager
 from app.modules.categoria.service import CategoriaService
-from app.modules.usuario.models import Usuario
+from app.modules.categoria.categoria_uow import CategoriaUnitOfWork
 from app.modules.categoria.model import Categoria
 from app.modules.categoria.schema import (
     CategoriaCreate,
@@ -15,12 +14,9 @@ from app.modules.categoria.schema import (
     CategoriaPublicRead,
     CategoriaPublicResponse,
 )
+from app.modules.usuario.models import Usuario
 
 router = APIRouter(prefix="/api/v1/categorias", tags=["Categorias"])
-
-
-def get_service(session: Session = Depends(get_session)):
-    return CategoriaService(session)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -34,31 +30,32 @@ def get_public(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, min_length=1, description="Búsqueda textual por nombre"),
-    service: CategoriaService = Depends(get_service),
 ):
-    items, total = service.get_public(
-        parent_id=parent_id,
-        offset=offset,
-        limit=limit,
-        search=search,
-    )
-    return CategoriaPublicResponse(
-        items=[
-            CategoriaPublicRead(
-                id=c.id,
-                nombre=c.nombre,
-                descripcion=c.descripcion,
-                imagen_url=c.imagen_url,
-                parent_id=c.parent_id,
-                created_at=c.created_at,
-                updated_at=c.updated_at,
-            )
-            for c in items
-        ],
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
+    with CategoriaUnitOfWork() as uow:
+        service = CategoriaService(uow)
+        items, total = service.get_public(
+            parent_id=parent_id,
+            offset=offset,
+            limit=limit,
+            search=search,
+        )
+        return CategoriaPublicResponse(
+            items=[
+                CategoriaPublicRead(
+                    id=c.id,
+                    nombre=c.nombre,
+                    descripcion=c.descripcion,
+                    imagen_url=c.imagen_url,
+                    parent_id=c.parent_id,
+                    created_at=c.created_at,
+                    updated_at=c.updated_at,
+                )
+                for c in items
+            ],
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -68,57 +65,73 @@ def get_public(
 
 @router.get("/", response_model=list[CategoriaRead], status_code=status.HTTP_200_OK)
 def get_all(
-    service: CategoriaService = Depends(get_service),
-    _: Usuario = Depends(RoleChecker("ADMIN")),
+    _: Usuario = Depends(require_role(["ADMIN","STOCK","PEDIDOS"])),
 ):
-    return service.get_all()
+    with CategoriaUnitOfWork() as uow:
+        service = CategoriaService(uow)
+        return service.get_all()
 
 
 @router.get("/{categoria_id}", response_model=CategoriaRead, status_code=status.HTTP_200_OK)
 def get_by_id(
     categoria_id: int = Path(..., gt=0),
-    service: CategoriaService = Depends(get_service),
-    _: Usuario = Depends(RoleChecker("ADMIN")),
+    _: Usuario = Depends(require_role(["ADMIN","STOCK","PEDIDOS"])),
 ):
-    categoria = service.get_by_id(categoria_id)
-    if not categoria:
-        raise HTTPException(status_code=404, detail="Categoria no encontrada")
-    return categoria
+    with CategoriaUnitOfWork() as uow:
+        service = CategoriaService(uow)
+        categoria = service.get_by_id(categoria_id)
+        if not categoria:
+            raise HTTPException(status_code=404, detail="Categoria no encontrada")
+        return categoria
 
 
 @router.post("/", response_model=CategoriaRead, status_code=status.HTTP_201_CREATED)
-def create(
+async def create(
     data: CategoriaCreate,
-    service: CategoriaService = Depends(get_service),
-    _: Usuario = Depends(RoleChecker("ADMIN")),
+    _: Usuario = Depends(require_role(["ADMIN"])),
 ):
-    categoria = Categoria(**data.model_dump())
-    return service.create(categoria)
+    """Crea una nueva categoria"""
+    with CategoriaUnitOfWork() as uow:
+        service = CategoriaService(uow)
+        categoria = Categoria(**data.model_dump())
+        resultado = service.create(categoria)
+
+    await ws_manager.broadcast_to_role("catalogo", {"event": "catalogo_actualizado"})
+    return resultado
 
 
 @router.put("/{categoria_id}", response_model=CategoriaRead)
-def update(
+async def update(
     data: CategoriaUpdate,
     categoria_id: int = Path(..., gt=0),
-    service: CategoriaService = Depends(get_service),
-    _: Usuario = Depends(RoleChecker("ADMIN")),
+    _: Usuario = Depends(require_role(["ADMIN"])),
 ):
-    categoria = service.get_by_id(categoria_id)
-    if not categoria:
-        raise HTTPException(status_code=404, detail="Categoria no encontrada")
+    """Actualiza una categoria por ID"""
+    with CategoriaUnitOfWork() as uow:
+        service = CategoriaService(uow)
+        categoria = service.get_by_id(categoria_id)
+        if not categoria:
+            raise HTTPException(status_code=404, detail="Categoria no encontrada")
 
-    return service.update(categoria, data.model_dump(exclude_unset=True))
+        resultado = service.update(categoria, data.model_dump(exclude_unset=True))
+
+    await ws_manager.broadcast_to_role("catalogo", {"event": "catalogo_actualizado"})
+    return resultado
 
 
 @router.delete("/{categoria_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete(
+async def delete(
     categoria_id: int = Path(..., gt=0),
-    service: CategoriaService = Depends(get_service),
-    _: Usuario = Depends(RoleChecker("ADMIN")),
+    _: Usuario = Depends(require_role(["ADMIN"])),
 ):
-    categoria = service.get_by_id(categoria_id)
-    if not categoria:
-        raise HTTPException(status_code=404, detail="Categoria no encontrada")
+    """Elimina una categoria por ID (soft delete)"""
+    with CategoriaUnitOfWork() as uow:
+        service = CategoriaService(uow)
+        categoria = service.get_by_id(categoria_id)
+        if not categoria:
+            raise HTTPException(status_code=404, detail="Categoria no encontrada")
 
-    service.delete(categoria)
+        service.delete(categoria)
+
+    await ws_manager.broadcast_to_role("catalogo", {"event": "catalogo_actualizado"})
     return
