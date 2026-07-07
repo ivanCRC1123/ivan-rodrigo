@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuthStore } from "../../../store/authStore";
+import { useAuthStore } from "../../../store/useAuthStore";
+import { Button } from "../../../shared/ui/Button";
+import { Input } from "../../../shared/ui/Input";
+import { Alert } from "../../../shared/ui/Alert";
+import { getApiErrorMessage } from "../../../shared/services/apiError";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -30,10 +34,8 @@ export default function RegisterPage() {
     try {
       await register(email.trim(), nombre.trim(), apellido.trim(), password);
       navigate("/checkout", { replace: true });
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.detail || err?.message || "Error al registrarse";
-      setError(msg);
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Error al registrarse"));
     } finally {
       setLoading(false);
     }
@@ -42,6 +44,26 @@ export default function RegisterPage() {
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-sm items-center justify-center px-4 py-12">
       <div className="w-full rounded-2xl border border-zinc-800 bg-zinc-900/50 p-8 shadow-xl">
+        {/* Icon */}
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10 mb-4">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-emerald-400"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="8.5" cy="7" r="4" />
+            <line x1="20" y1="8" x2="20" y2="14" />
+            <line x1="23" y1="11" x2="17" y2="11" />
+          </svg>
+        </div>
         <h1 className="mb-1 text-center text-2xl font-bold text-white">
           Crear cuenta
         </h1>
@@ -51,49 +73,41 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <input
+            <Input
               type="text"
               placeholder="Nombre"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+              subtle
             />
-            <input
+            <Input
               type="text"
               placeholder="Apellido"
               value={apellido}
               onChange={(e) => setApellido(e.target.value)}
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+              subtle
             />
           </div>
-          <input
+          <Input
             type="email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+            subtle
           />
-          <input
+          <Input
             type="password"
             placeholder="Contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+            subtle
           />
 
-          {error && (
-            <p className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-center text-sm text-red-400">
-              {error}
-            </p>
-          )}
+          {error && <Alert className="text-center">{error}</Alert>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-emerald-500 py-3 font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:opacity-50"
-          >
+          <Button type="submit" size="lg" disabled={loading} className="w-full">
             {loading ? "Registrando..." : "Crear cuenta"}
-          </button>
+          </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-zinc-600">

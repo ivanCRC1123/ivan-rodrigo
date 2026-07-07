@@ -1,8 +1,13 @@
 import { useState } from "react";
-import { useAddresses, useCreateAddress, useDeleteAddress, useSetPrincipalAddress } from "../hooks/useAddresses";
+import { useAddresses } from "../hooks/useAddresses";
 import AddressCard from "./AddressCard";
 import AddressForm from "./AddressForm";
-import type { DireccionEntregaCreateCliente, DireccionEntregaReadSimple } from "../types";
+import type {
+  DireccionEntregaCreateCliente,
+  DireccionEntregaReadSimple,
+} from "../types";
+import { Spinner } from "../../../shared/ui/Spinner";
+import { Alert } from "../../../shared/ui/Alert";
 
 interface AddressSelectorProps {
   selectedId: number | null;
@@ -13,14 +18,20 @@ export default function AddressSelector({
   selectedId,
   onSelect,
 }: AddressSelectorProps) {
-  const { data: addresses, isLoading, isError, error } = useAddresses();
-  const createMutation = useCreateAddress();
-  const deleteMutation = useDeleteAddress();
-  const setPrincipalMutation = useSetPrincipalAddress();
+  const {
+    data: addresses,
+    isLoading,
+    isError,
+    error,
+    create,
+    delete: removeAddr,
+    setPrincipal,
+    isCreating,
+  } = useAddresses();
   const [showForm, setShowForm] = useState(false);
 
   const handleCreate = (data: DireccionEntregaCreateCliente) => {
-    createMutation.mutate(data, {
+    create.mutate(data, {
       onSuccess: () => {
         setShowForm(false);
       },
@@ -29,30 +40,28 @@ export default function AddressSelector({
 
   const handleDelete = (id: number) => {
     if (window.confirm("¿Eliminar esta dirección?")) {
-      deleteMutation.mutate(id);
+      removeAddr.mutate(id);
     }
   };
 
   const selectedAddress = addresses?.find((a) => a.id === selectedId) ?? null;
 
-  // ── Loading ──
+  // Loading
   if (isLoading) {
     return (
       <div className="flex items-center gap-3 py-4">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-500/30 border-t-emerald-500" />
-        <span className="text-sm text-zinc-500">Cargando direcciones...</span>
+        <Spinner size="sm" label="Cargando direcciones..." />
       </div>
     );
   }
 
-  // ── Error ──
+  // Error
   if (isError) {
     return (
-      <div className="rounded-xl border border-red-800/50 bg-red-900/10 p-4">
-        <p className="text-sm text-red-400">
-          Error al cargar direcciones: {(error as Error)?.message ?? "Error desconocido"}
-        </p>
-      </div>
+      <Alert>
+        Error al cargar direcciones:{" "}
+        {(error as Error)?.message ?? "Error desconocido"}
+      </Alert>
     );
   }
 
@@ -76,7 +85,7 @@ export default function AddressSelector({
         )}
       </div>
 
-      {/* Address list */}
+      {/* lista de direcciones */}
       {addresses && addresses.length > 0 && !showForm && (
         <div className="grid gap-2">
           {addresses.map((addr) => (
@@ -86,13 +95,13 @@ export default function AddressSelector({
               selected={addr.id === selectedId}
               onSelect={() => onSelect(addr)}
               onDelete={() => handleDelete(addr.id)}
-              onSetPrincipal={() => setPrincipalMutation.mutate(addr.id)}
+              onSetPrincipal={() => setPrincipal.mutate(addr.id)}
             />
           ))}
         </div>
       )}
 
-      {/* New address form */}
+      {/* Nuevo formulario de dirección  */}
       {showForm && (
         <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/20 p-4">
           <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -101,12 +110,12 @@ export default function AddressSelector({
           <AddressForm
             onSubmit={handleCreate}
             onCancel={() => setShowForm(false)}
-            isPending={createMutation.isPending}
+            isPending={isCreating}
           />
         </div>
       )}
 
-      {/* Selected address display (compact) */}
+      {/* Visualización de direcciones seleccionadas (compacta) */}
       {selectedAddress && !showForm && (
         <div className="flex items-center gap-2 rounded-lg bg-emerald-500/5 px-3 py-2">
           <svg

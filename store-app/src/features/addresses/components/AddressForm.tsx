@@ -1,5 +1,8 @@
 import { useState } from "react";
 import type { DireccionEntregaCreateCliente } from "../types";
+import { Button } from "../../../shared/ui/Button";
+import { Input } from "../../../shared/ui/Input";
+import { TextArea } from "../../../shared/ui/TextArea";
 
 interface AddressFormProps {
   onSubmit: (data: DireccionEntregaCreateCliente) => void;
@@ -37,9 +40,6 @@ export default function AddressForm({
     });
   };
 
-  const inputClass =
-    "w-full rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20";
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Alias */}
@@ -47,8 +47,8 @@ export default function AddressForm({
         <label className="mb-1.5 block text-xs text-zinc-600">
           Alias <span className="text-emerald-500">*</span>
         </label>
-        <input
-          className={inputClass}
+        <Input
+          subtle
           placeholder="Ej: Casa, Trabajo, Gym..."
           value={alias}
           onChange={(e) => setAlias(e.target.value)}
@@ -62,8 +62,8 @@ export default function AddressForm({
           <label className="mb-1.5 block text-xs text-zinc-600">
             Calle <span className="text-emerald-500">*</span>
           </label>
-          <input
-            className={inputClass}
+          <Input
+            subtle
             placeholder="Av. Siempre Viva"
             value={calle}
             onChange={(e) => setCalle(e.target.value)}
@@ -74,8 +74,8 @@ export default function AddressForm({
           <label className="mb-1.5 block text-xs text-zinc-600">
             N° <span className="text-emerald-500">*</span>
           </label>
-          <input
-            className={inputClass}
+          <Input
+            subtle
             placeholder="123"
             value={numero}
             onChange={(e) => setNumero(e.target.value)}
@@ -89,8 +89,8 @@ export default function AddressForm({
         <label className="mb-1.5 block text-xs text-zinc-600">
           Piso / Dpto
         </label>
-        <input
-          className={inputClass}
+        <Input
+          subtle
           placeholder="Ej: 4B"
           value={apartamento}
           onChange={(e) => setApartamento(e.target.value)}
@@ -102,8 +102,8 @@ export default function AddressForm({
         <label className="mb-1.5 block text-xs text-zinc-600">
           Localidad <span className="text-emerald-500">*</span>
         </label>
-        <input
-          className={inputClass}
+        <Input
+          subtle
           placeholder="La Plata"
           value={localidad}
           onChange={(e) => setLocalidad(e.target.value)}
@@ -117,8 +117,8 @@ export default function AddressForm({
           <label className="mb-1.5 block text-xs text-zinc-600">
             Código Postal
           </label>
-          <input
-            className={inputClass}
+          <Input
+            subtle
             placeholder="1900"
             value={codigoPostal}
             onChange={(e) => setCodigoPostal(e.target.value)}
@@ -128,8 +128,8 @@ export default function AddressForm({
           <label className="mb-1.5 block text-xs text-zinc-600">
             Provincia
           </label>
-          <input
-            className={inputClass}
+          <Input
+            subtle
             placeholder="Buenos Aires"
             value={provincia}
             onChange={(e) => setProvincia(e.target.value)}
@@ -140,8 +140,8 @@ export default function AddressForm({
       {/* Notas */}
       <div>
         <label className="mb-1.5 block text-xs text-zinc-600">Notas</label>
-        <textarea
-          className={inputClass}
+        <TextArea
+          subtle
           placeholder="Ej: Dejar en portería"
           value={notas}
           onChange={(e) => setNotas(e.target.value)}
@@ -164,20 +164,17 @@ export default function AddressForm({
 
       {/* Buttons */}
       <div className="flex gap-3 pt-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={onCancel}
-          className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 text-sm font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-300"
+          className="flex-1"
         >
           Cancelar
-        </button>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="flex-1 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        </Button>
+        <Button type="submit" size="lg" disabled={isPending} className="flex-1">
           {isPending ? "Guardando..." : "Guardar dirección"}
-        </button>
+        </Button>
       </div>
     </form>
   );

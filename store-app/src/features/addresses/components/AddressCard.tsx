@@ -29,6 +29,11 @@ export default function AddressCard({
           : "border-zinc-800/60 bg-zinc-900/30 hover:border-zinc-700"
       }`}
     >
+      {/* Barra lateral de selección */}
+      {selected && (
+        <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-emerald-500" />
+      )}
+
       {/* Principal badge */}
       {address.es_principal && (
         <span className="absolute right-3 top-3 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
@@ -37,14 +42,14 @@ export default function AddressCard({
       )}
 
       {/* Alias */}
-      <p className="pr-20 text-sm font-semibold text-zinc-100">
+      <p className={`pr-20 text-sm font-semibold ${selected ? "text-emerald-300" : "text-zinc-100"}`}>
         {address.alias}
       </p>
 
-      {/* Address line */}
+      {/* Línea de dirección */}
       <p className="mt-1 text-xs text-zinc-500">{addressLine}</p>
 
-      {/* Actions */}
+      {/* Acciones */}
       {showActions && (
         <div className="mt-3 flex items-center gap-3">
           {!address.es_principal && onSetPrincipal && (
@@ -74,10 +79,10 @@ export default function AddressCard({
         </div>
       )}
 
-      {/* Selected indicator */}
+      {/* Checkmark selección animado */}
       {selected && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500">
+          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/30">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="12"

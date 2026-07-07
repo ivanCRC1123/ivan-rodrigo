@@ -1,4 +1,4 @@
-import apiClient from "../../../shared/api/apiClient";
+import apiClient from "../../../shared/services/apiClient";
 import type {
   DireccionEntregaReadSimple,
   DireccionEntregaCreateCliente,
@@ -6,7 +6,7 @@ import type {
   DireccionPrincipalResponse,
 } from "../types";
 
-/** GET /api/v1/direcciones/ — list authenticated user's addresses */
+/** GET /api/v1/direcciones/ — enumera las direcciones de los usuarios autenticados  */
 export const fetchMyAddresses = async (): Promise<
   DireccionEntregaReadSimple[]
 > => {
@@ -14,7 +14,7 @@ export const fetchMyAddresses = async (): Promise<
   return data;
 };
 
-/** POST /api/v1/direcciones/ — create a new address */
+/** POST /api/v1/direcciones/ — crear una nueva dirección */
 export const createAddress = async (
   address: DireccionEntregaCreateCliente,
 ): Promise<DireccionCreatedResponse> => {
@@ -22,17 +22,15 @@ export const createAddress = async (
   return data;
 };
 
-/** PATCH /api/v1/direcciones/{id}/principal — set address as principal */
+/** PATCH /api/v1/direcciones/{id}/principal — Establecer dirección como principal **/
 export const setPrincipalAddress = async (
   id: number,
 ): Promise<DireccionPrincipalResponse> => {
-  const { data } = await apiClient.patch(
-    `/api/v1/direcciones/${id}/principal`,
-  );
+  const { data } = await apiClient.patch(`/api/v1/direcciones/${id}/principal`);
   return data;
 };
 
-/** DELETE /api/v1/direcciones/{id} — soft-delete an address */
+/** DELETE /api/v1/direcciones/{id} — eliminar una dirección  */
 export const deleteAddress = async (id: number): Promise<void> => {
   await apiClient.delete(`/api/v1/direcciones/${id}`);
 };

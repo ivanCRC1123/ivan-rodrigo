@@ -1,9 +1,11 @@
 import { useCartStore } from "../../../store/useCartStore";
 import { Link } from "react-router-dom";
-import { useAuthStore } from "../../../store/authStore";
+import { useAuthStore } from "../../../store/useAuthStore";
+import { Button } from "../../../shared/ui/Button";
+import { CartItem } from "../components/CartItem";
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, clearCart } = useCartStore();
+  const { items, clearCart } = useCartStore();
   const isAuth = useAuthStore((s) => s.isAuthenticated)();
   const total = items.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -23,28 +25,44 @@ export default function CartPage() {
           </p>
         </div>
         {items.length > 0 && (
-          <button
-            onClick={clearCart}
-            className="rounded-xl border border-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/10"
-          >
+          <Button variant="danger" size="sm" onClick={clearCart}>
             Vaciar
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Empty State */}
       {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-800 p-16 text-center">
-          <p className="text-5xl">🛒</p>
-          <p className="mt-4 text-lg font-medium text-zinc-400">
-            Tu carrito está vacío
-          </p>
-          <p className="mt-1 text-sm text-zinc-600">
-            Agregá productos desde el catálogo
-          </p>
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-zinc-800/60 py-20 px-8 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800/40">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-zinc-600"
+            >
+              <circle cx="8" cy="21" r="1" />
+              <circle cx="19" cy="21" r="1" />
+              <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-lg font-medium text-zinc-400">
+              Tu carrito está vacío
+            </p>
+            <p className="mt-1 text-sm text-zinc-600">
+              Agregá productos desde el catálogo
+            </p>
+          </div>
           <Link
             to="/"
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 active:scale-95"
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 active:scale-95"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -68,74 +86,12 @@ export default function CartPage() {
           {/* Items */}
           <div className="space-y-3">
             {items.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-4 rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-4 shadow-sm transition hover:border-zinc-700/60 sm:p-5"
-              >
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="truncate font-semibold text-zinc-100">
-                    {item.name}
-                  </h3>
-                  <p className="mt-0.5 text-sm text-emerald-400">
-                    ${Number(item.price).toFixed(2)} c/u
-                  </p>
-                </div>
-
-                {/* Quantity */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                    disabled={item.quantity <= 1}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-800 text-zinc-400 transition hover:border-zinc-700 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-30"
-                  >
-                    −
-                  </button>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800/50 text-sm font-semibold text-zinc-100">
-                    {item.quantity}
-                  </span>
-                  <button
-                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-800 text-zinc-400 transition hover:border-zinc-700 hover:bg-zinc-800 hover:text-zinc-100"
-                  >
-                    +
-                  </button>
-                </div>
-
-                {/* Subtotal */}
-                <div className="w-24 text-right">
-                  <p className="font-semibold text-zinc-100">
-                    ${(item.price * item.quantity).toFixed(2)}
-                  </p>
-                </div>
-
-                {/* Remove */}
-                <button
-                  onClick={() => removeItem(item.id)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-600 transition hover:bg-red-500/10 hover:text-red-400"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 6h18" />
-                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                  </svg>
-                </button>
-              </div>
+              <CartItem key={item.id} item={item} />
             ))}
           </div>
 
           {/* Summary */}
-          <div className="mt-8 rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-6 shadow-sm">
+          <div className="mt-8 rounded-2xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900/40 to-zinc-900/20 p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-lg text-zinc-400">Total</span>
               <span className="text-3xl font-bold text-emerald-400">

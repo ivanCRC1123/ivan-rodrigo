@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+# Variables de entorno — nunca subir al repositorio
+.env
+.env.local
+.env.*.local
 
 # Editor directories and files
 .vscode/*
